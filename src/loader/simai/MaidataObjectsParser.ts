@@ -1,21 +1,18 @@
 import Note from "../../data/music/object/Note";
 import Bpm from "../../data/music/object/Bpm";
-import TimeSignature from "../../data/music/object/TimeSignature";
+import SlideNote from "../../data/music/object/SlideNote";
+import SlideType from "../../data/music/object/SlideType";
 import TouchArea from "../../data/music/object/TouchArea";
 import NoteType from "../../data/music/object/NoteType";
-import {start} from "repl";
-import SlideNote from "../../data/music/object/SlideNote";
-import {split} from "ts-node";
+import HoldNote from "../../data/music/object/HoldNote";
 
 export default class MaidataObjectsParser {
     private noteObjects: Note[];
     private bpmObjects: Bpm[];
-    private timeSignatureObjects: TimeSignature[];
 
-    constructor(data: string, gridsPerMeasure: number, defaultBpm: number, defaultMeasureDivisor: number = 4) {
+    constructor(data: string, measureResolution: number, defaultBpm: number, defaultDivisor: number = 4) {
         this.bpmObjects = [];
-        this.timeSignatureObjects = [];
-        this.noteObjects = this.load(data, gridsPerMeasure, defaultBpm, defaultMeasureDivisor);
+        this.noteObjects = this.load(data, measureResolution, defaultBpm, defaultDivisor);
     }
 
     getNoteObjects() {
@@ -27,71 +24,78 @@ export default class MaidataObjectsParser {
     }
 
     getTimeSignatureObjects() {
-        return this.timeSignatureObjects;
+        return [];
     }
 
-    private load(data: string, gridsPerMeasure: number, defaultBpm: number, defaultMeasureDivisor: number) {
+    private load(data: string, measureResolution: number, defaultBpm: number, defaultDivisor: number) {
         this.noteObjects = [];
         this.bpmObjects = [];
-        this.timeSignatureObjects = [];
 
-        const items = data.split(',');
+        let items = data.split(',');
         items.forEach((value: string, index: number) => items[index] = value.trim());
-        const resultNoteObjects = [];
+        items = items.filter(v => v.length > 0);
         let bpm = defaultBpm;
-        let measureDivisor = defaultMeasureDivisor;
-        let measure = 1, grid = 0;
+        let restLength = measureResolution / defaultDivisor;
+        let currentMeasure = 1, currentGrid = 0;
         for (let item of items) {
             const newBpm = this.parseBpm(item);
             if (newBpm != null) {
                 item = this.trimBpm(item);
                 bpm = newBpm;
-                this.bpmObjects.push({bpm, measure, grid});
+                this.bpmObjects.push({bpm, measure: currentMeasure, grid: currentGrid});
             }
 
-            const newMeasureDivisor = this.parseMeasureDivisor(item, bpm);
-            if (newMeasureDivisor != null) {
-                measureDivisor = newMeasureDivisor;
-                item = this.trimMeasureDivisor(item);
+            const divisor = this.parseDivisor(item, measureResolution, bpm);
+            if (divisor != null) {
+                const newRestLength = this.toGridLength(divisor, measureResolution, bpm);
+                if (!isNaN(Number(newRestLength))) {
+                    restLength = newRestLength;
+                }
+                item = this.trimDivisor(item);
             }
 
-            const noteObjects = this.parseEach(item, gridsPerMeasure, bpm, measureDivisor);
+            const noteObjects = this.parseEach(item, currentMeasure, currentGrid, measureResolution, bpm);
             if (noteObjects != null) {
                 this.noteObjects.push(...noteObjects);
             }
 
-            grid += gridsPerMeasure / measureDivisor;
-            if (grid >= gridsPerMeasure) {
-                grid -= gridsPerMeasure;
-                measure++;
+            currentGrid += restLength;
+            if (currentGrid >= measureResolution) {
+                currentGrid %= measureResolution;
+                currentMeasure++;
             }
         }
-        return resultNoteObjects;
+        return this.noteObjects;
     }
 
-    private parseMeasureDivisor(item: string, bpm: number): number | null {
-        const matches = item.match(/{(\d+|#\d+\.?\d*)}/);
+    // [<length>] -> <length>
+    private parseLength(item: string): string | null {
+        const matches = item.match(/\[(\d+|#\d+\.?\d*|\d+\.?\d*(?:#{1,2})\d+\.?\d*|\d+\.?\d*(?::)\d+\.?\d*)]/);
         if (matches != null && matches.length > 0) {
-            const value = matches[0];
-            if (value.includes('#')) {
-                return this.toNormalDivisor(value, bpm);
-            } else if (!isNaN(Number(value))) {
-                return parseInt(value);
-            } else {
-                throw new Error(`Invalid time signature in ${item}`);
-            }
+            return matches[1];
         }
         return null;
     }
 
-    private trimMeasureDivisor(item: string): string {
+    // {<divisor>} -> <divisor>
+    private parseDivisor(item: string, measureResolution: number, bpm: number): string | null {
+        const matches = item.match(/{(\d+|#\d+\.?\d*|\d+\.?\d*(?:#{1,2})\d+\.?\d*)}/);
+        if (matches != null && matches.length > 0) {
+            return matches[1];
+        }
+        return null;
+    }
+
+    // {8}1 -> 1
+    private trimDivisor(item: string): string {
         return item.replace(/{(\d+|#\d+\.?\d*)}/g, '');
     }
 
+    // (120)1 -> 120
     private parseBpm(item: string): number | null {
         const matches = item.match(/\((\d+\.?\d*)\)/);
         if (matches != null && matches.length > 0) {
-            const value = parseFloat(matches[0]);
+            const value = parseFloat(matches[1]);
             if (!isNaN(value)) {
                 return value;
             } else {
@@ -101,22 +105,29 @@ export default class MaidataObjectsParser {
         return null;
     }
 
+    // (120)1 -> 1
     private trimBpm(item: string): string {
         return item.replace(/\((\d+\.?\d*)\)/g, '');
     }
 
-    private parseEach(item: string, gridsPerMeasure: number, bpm: number, measureDivisor: number): Note[] {
+    private parseEach(item: string,
+                      measure: number,
+                      grid: number,
+                      measureResolution: number,
+                      bpm: number): Note[] {
         let eachNotes: Note[] = [];
-        if (item.length === 2 && !isNaN(Number(item))) {
+        // 12345678
+        if (item.length >= 2 && item.length <= 8 && !isNaN(Number(item))) {
             const matches = item.match(/([1-8])/g);
             if (matches != null && matches.length > 0) {
                 for (const match of matches) {
-                    const note = this.parseSingle(match, gridsPerMeasure, bpm, measureDivisor);
-                    if (note != null) {
-                        eachNotes.push(note);
+                    const producedNotes = this.parseSingle(match, measure, grid, measureResolution, bpm);
+                    if (producedNotes != null) {
+                        eachNotes.push(...producedNotes);
                     }
                 }
             }
+        // 1/2/3/4 | 1`2`3`4
         } else {
             const matches = item.match(/(?:[\/`])?([a-zA-Z0-9\[\]:.^<>*?!\-@$#`]+)/g);
             if (matches != null && matches.length > 0) {
@@ -124,9 +135,14 @@ export default class MaidataObjectsParser {
                 for (const match of matches) {
                     const isPseudo = match.charAt(0) === '`';
                     const isMultiple = match.charAt(0) === '/' || isPseudo;
-                    const notes = this.parseMultiple(isMultiple ? match.substring(1) : match, gridsPerMeasure, bpm, measureDivisor, pseudoIndex++);
-                    if (notes.length > 0) {
-                        eachNotes = eachNotes.concat(notes);
+                    const producedNotes = this.parseMultiple(isMultiple ? match.substring(1) : match,
+                        measure,
+                        grid,
+                        measureResolution,
+                        bpm,
+                        pseudoIndex++);
+                    if (producedNotes != null && producedNotes.length > 0) {
+                        eachNotes.push(...producedNotes);
                     }
                 }
             }
@@ -134,43 +150,62 @@ export default class MaidataObjectsParser {
         return eachNotes;
     }
 
-    private parseMultiple(item: string, gridsPerMeasure: number, bpm: number, measureDivisor: number, pseudoIndex?: number): Note[] {
+    private parseMultiple(item: string,
+                          measure: number,
+                          grid: number,
+                          measureResolution: number,
+                          bpm: number,
+                          pseudoIndex: number = 0): Note[] {
         const matches = item.match(/(?:\*!?)?([a-zA-Z0-9\[\]:.^<>?!\-@$#`]+)/g);
         const notes: Note[] = [];
         if (matches != null && matches.length > 0) {
-            let startPosition = parseInt(matches[0].substring(0, 1));
+            let startPosition = Number(matches[0].charAt(0));
+            if (isNaN(startPosition)) {
+                throw new Error(`Start of a sequence must be of a button position: ${item}`);
+            }
             let lastEndPosition = -1;
             for (const match of matches) {
-                const isMultipleEnding = match.charAt(0) === '*';
-                const isSequenceWithStar = match.charAt(0) === '?';
-                const isSequenceWithoutStar = match.charAt(0) === '!';
+                const isMultipleEnding = match.charAt(0) === '*'; // 1-4[4:1]*-7[4:1]*-2[4:1]
+                const isSequenceWithStar = match.charAt(0) === '?'; // 1-4[4:1]?-7[4:1]?-2[4:1]
+                const isSequenceWithoutStar = match.charAt(0) === '!'; // 1-4[4:1]!-7[4:1]!-2[4:1]
                 const isSequence = isMultipleEnding || isSequenceWithStar || isSequenceWithoutStar;
-                const note = this.parseSingle(isSequence ? startPosition.toString() + match.substring(1) : match, gridsPerMeasure, bpm, measureDivisor);
-                if (note != null) {
-                    if ('slideType' in note) {
-                        const slideNote = <SlideNote> note;
-                        if (isSequenceWithStar || isSequenceWithoutStar) {
-                            slideNote.position = lastEndPosition;
+                const producedNotes = this.parseSingle(isSequence ? startPosition.toString() + match.substring(1) : match,
+                    measure,
+                    grid + pseudoIndex,
+                    measureResolution,
+                    bpm,
+                    isSequence ? match.charAt(0) : undefined);
+                if (producedNotes != null) {
+                    for (const i in producedNotes) {
+                        const note = producedNotes[i];
+                        if (note.type === NoteType.SLIDE) {
+                            const slideNote = <SlideNote> producedNotes[i];
+                            if (isSequenceWithStar || isSequenceWithoutStar) {
+                                slideNote.position = lastEndPosition;
+                            }
+                            lastEndPosition = slideNote.endPosition;
                         }
-                        lastEndPosition = slideNote.endPosition;
-                        notes.push(slideNote);
-                    } else {
-                        notes.push(note);
                     }
+                    notes.push(...producedNotes);
                 }
             }
         }
         return notes;
     }
 
-    private parseSingle(item: string, gridsPerMeasure: number, bpm: number, measureDivisor: number): Note | null {
+    private parseSingle(item: string,
+                        measure: number,
+                        grid: number,
+                        measureResolution: number,
+                        bpm: number,
+                        sequenceType?: string): Note[] {
         const matches = item.match(/^([1-8]|[ABDE][1-8]|C)([@$bfhx]{0,3})?([-^<>Vpqsvwz]{0,2})?([1-8]{1,2})?(\[\d+[:|#]{1,2}\d+])?/);
         if (matches != null && matches.length > 0) {
-            const startPosition = matches[0];
-            const decoratorOrSlideNotationOrLength = matches[1];
-            const slideNotationOrEndPositionOrLength = matches[2];
-            const endPositionOrLength = matches[3];
-            const possiblyLength = matches[4];
+            const startPosition = matches[1];
+            const decoratorOrSlideNotationOrLength = matches[2];
+            const slideNotationOrEndPositionOrLength = matches[3];
+            const endPositionOrLength = matches[4];
+            const possiblyLength = matches[5];
             let decorators, slideNotation, endPosition, length;
 
             // Grouping
@@ -220,8 +255,8 @@ export default class MaidataObjectsParser {
                     throw new Error(`Illegal break decorator for hold: ${item}`);
                 } else if (this.hasForceRingDecorator(decorators) || this.hasForceStarDecorator(decorators)) {
                     throw new Error(`Illegal force decorator for hold: ${item}`);
-                } else if (length == null) {
-                    throw new Error(`Missing mandatory length for hold: ${item}`);
+                } else if (!this.isButtonPosition(startPosition) && startPosition !== 'C') {
+                    throw new Error(`Illegal start position for hold: ${item}`);
                 }
             }
             if (this.hasFireworkDecorator(decorators)) {
@@ -242,43 +277,229 @@ export default class MaidataObjectsParser {
                     throw new Error(`Invalid start position for break decorator: ${item}`);
                 }
             }
+            if (endPosition != null && endPosition.length === 2) {
+                if (slideNotation !== 'V') {
+                    throw new Error(`Illegal end position for slide type: ${item}`);
+                } else {
+                    const tagPosition = endPosition.charAt(0);
+                    const nStartPosition = Number(startPosition);
+                    if (this.shiftPosition(tagPosition, 2, -1) !== nStartPosition &&
+                        this.shiftPosition(tagPosition, 2, 1) !== nStartPosition) {
+                        throw new Error(`Tag position for tag slide may only shift by 2: ${item}`);
+                    }
+                }
+            }
+
+            // Construct
+            if (slideNotation != null) {
+                const durationMap = this.convertWaitTravelMapToGridLength(length, measureResolution, bpm);
+                let waitDuration = measureResolution / 4, travelDuration; // wait duration is always one beat by default
+                if (durationMap != null) {
+                    waitDuration = durationMap.waitDuration;
+                    travelDuration = durationMap.travelDuration;
+                } else {
+                    travelDuration = this.toGridLength(length, measureResolution, bpm);
+                }
+                const nStartPosition = Number(startPosition);
+                let slideType = this.toSlideType(slideNotation);
+                if (slideNotation === 'V') {
+                    const tagPosition = endPosition?.charAt(0);
+                    slideType = this.shiftPosition(tagPosition, 2, -1) === nStartPosition ? SlideType.L_TAG_L : SlideType.L_TAG_R;
+                    endPosition = endPosition?.charAt(1);
+                }
+                const nEndPosition = Number(endPosition);
+
+                const notes: Note[] = [];
+
+                if (sequenceType == null || sequenceType === '?') {
+                    const starType = this.hasBreakDecorator(decorators) ? NoteType.BREAK_STAR :
+                        (this.hasExDecorator(decorators) ? NoteType.EX_STAR : NoteType.STAR);
+                    const ringType = this.hasBreakDecorator(decorators) ? NoteType.BREAK :
+                        (this.hasExDecorator(decorators) ? NoteType.EX_TAP : NoteType.TAP);
+                    notes.push({
+                        grid,
+                        measure,
+                        position: nStartPosition,
+                        area: TouchArea.A,
+                        type: this.hasForceRingDecorator(decorators) ? ringType : starType
+                    });
+                }
+
+                notes.push(<Note>{
+                    grid,
+                    measure,
+                    position: nStartPosition,
+                    area: TouchArea.A,
+                    type: NoteType.SLIDE,
+                    slideType,
+                    endPosition: nEndPosition,
+                    waitDuration,
+                    travelDuration
+                });
+
+                return notes;
+            } else if (this.hasHoldDecorator(decorators)) {
+                const position = this.isButtonPosition(startPosition) ? Number(startPosition) :
+                    startPosition === 'C' ? undefined : Number(startPosition.charAt(1));
+                const area = this.toTouchArea(startPosition);
+                const note: HoldNote = {
+                    grid,
+                    measure,
+                    position,
+                    area,
+                    type: startPosition === 'C' ? NoteType.TOUCH_HOLD :
+                        (this.hasExDecorator(decorators) ? NoteType.EX_HOLD : NoteType.HOLD)
+                };
+
+                if (length != null) {
+                    const parsedLength = this.parseLength(length);
+                    if (parsedLength != null) {
+                        note.holdLength = this.toGridLength(parsedLength, measureResolution, bpm);
+                    } else {
+                        throw new Error(`Unable to parse hold length: ${length}`);
+                    }
+                }
+
+                return [<Note>note];
+            } else {
+                const position = this.isButtonPosition(startPosition) ? Number(startPosition) :
+                    startPosition === 'C' ? undefined : Number(startPosition.charAt(1));
+                const area = this.toTouchArea(startPosition);
+                const starType = (this.hasBreakDecorator(decorators) ? NoteType.BREAK_STAR :
+                    (this.hasExDecorator(decorators) ? NoteType.EX_STAR : NoteType.STAR));
+                const ringType = (this.hasBreakDecorator(decorators) ? NoteType.BREAK :
+                    (this.hasExDecorator(decorators) ? NoteType.EX_TAP : NoteType.TAP));
+                const note: Note = {
+                    grid,
+                    measure,
+                    position,
+                    area,
+                    type: this.isTouchPosition(startPosition) ? NoteType.TOUCH_TAP :
+                        this.hasForceStarDecorator(decorators) ? starType : ringType
+                };
+
+                return [note];
+            }
+        }
+        return [];
+    }
+
+    // <waitDuration>##<travelDuration> -> {waitDurationGridLength, travelDurationGridLength}
+    private convertWaitTravelMapToGridLength(value: string, measureResolution: number, defaultBpm: number) {
+        if (value.indexOf('##') > 0) {
+            const splitValue = value.split('##');
+            const waitDuration = parseFloat(splitValue[0]);
+            const travelDuration = parseFloat(splitValue[1]);
+            if (!isNaN(waitDuration) && !isNaN(travelDuration)) {
+                return {
+                    waitDuration: this.convertSecondsToGridLength(waitDuration, measureResolution, defaultBpm),
+                    travelDuration: this.convertSecondsToGridLength(travelDuration, measureResolution, defaultBpm)
+                };
+            }
+        }
+        return null;
+    }
+
+    // (<divisor> | <divisor>:<length> | #<ravelDuration> | <bpm>#<travelDuration>) -> <restLength>
+    private toGridLength(value: string, measureResolution: number, defaultBpm: number) {
+        let bpm = defaultBpm;
+        // #<travelDuration> | <bpm>#<travelDuration>
+        if (value.indexOf('#') !== -1) {
+            let rawDuration;
+            if (value.indexOf('#') > 0) {
+                bpm = parseFloat(value.substring(0, value.indexOf('#')));
+                rawDuration = value.substring(value.indexOf('#') + 1);
+                if (isNaN(bpm)) {
+                    throw new Error(`Invalid value during conversion: ${value}`);
+                }
+            } else {
+                rawDuration = value.substring(1);
+            }
+            const secondsDuration = parseFloat(rawDuration);
+            if (isNaN(secondsDuration)) {
+                throw new Error(`Invalid duration during conversion: ${value}`);
+            }
+            return this.convertSecondsToGridLength(secondsDuration, measureResolution, bpm);
+        // <divisor>:<length>
+        } else if (value.indexOf(':') !== -1) {
+            if (value.indexOf(':') > 0) {
+                const splitValue = value.split(':');
+                const divisor = parseFloat(splitValue[0]);
+                const length = parseFloat(splitValue[1]);
+                if (!isNaN(divisor) && !isNaN(length)) {
+                    return this.convertBracketsLengthToGridLength(divisor, length, measureResolution);
+                }
+            }
+            throw new Error(`Conversion failed due to invalid length: ${value}`);
+        } else {
+            const divisor = parseInt(value);
+            if (!isNaN(divisor)) {
+                return 1 / divisor * measureResolution;
+            }
+        }
+        throw new Error(`Conversion failed due to unrecognized length format: ${value}`);
+    }
+
+    // <slideNotation> -> <slideType>
+    // '-' -> SlideType.STRAIGHT
+    private toSlideType(value: string) {
+        switch (value) {
+            case '-':
+                return SlideType.STRAIGHT;
+            case '<':
+                return SlideType.CURVE_L;
+            case '>':
+                return SlideType.CURVE_R;
+            case 'p':
+                return SlideType.CENTER_ROTATION_LEFT;
+            case 'q':
+                return SlideType.CENTER_ROTATION_RIGHT;
+            case 's':
+                return SlideType.LETTER_S_LEFT;
+            case 'z':
+                return SlideType.LETTER_S_RIGHT;
+            case 'v':
+                return SlideType.LETTER_V;
+            case 'pp':
+                return SlideType.SIDE_ROTATION_L;
+            case 'qq':
+                return SlideType.SIDE_ROTATION_R;
+            case 'V': // case 'V' should be further handled to decide L/R
+                return SlideType.L_TAG_L;
+            case 'w':
+                return SlideType.FAN;
+        }
+        throw new Error(`Unknown slide notation: ${value}`);
+    }
+
+    private toTouchArea(value: string) {
+        if (this.isButtonPosition(value)) {
+            return TouchArea.A;
+        } else if (value.charAt(0) === 'B') {
+            return TouchArea.B;
+        } else if (value.charAt(0) === 'C') {
+            return TouchArea.C;
+        } else if (value.charAt(0) === 'D') {
+            return TouchArea.D;
+        } else if (value.charAt(0) === 'E') {
+            return TouchArea.E;
+        } else {
+            throw new Error(`Unknown position: ${value}`);
         }
     }
 
-    private toNormalDivisor(value: string, defaultBpm: number) {
-        let bpm = defaultBpm;
-        if (value.indexOf('#') !== -1) {
-            if (value.indexOf('##') > 0) {
-                const splitValue = value.split('##');
-                const waitDuration = parseFloat(splitValue[0]);
-                const travelDuration = parseFloat(splitValue[1]);
-                if (isNaN(waitDuration) || isNaN(travelDuration)) {
-                    throw new Error(`Conversion failed due to invalid length: ${value}`);
-                }
-                // TODO
-                return null;
-            } else {
-                let valueSeconds = parseFloat(value.substring(1));
-                if (value.indexOf('#') > 0) {
-                    const splitValue = value.split('#');
-                    bpm = parseFloat(splitValue[0]);
-                    valueSeconds = parseFloat(splitValue[1]);
-                    if (isNaN(bpm) || isNaN(valueSeconds)) {
-                        throw new Error(`Conversion failed due to invalid length: ${value}`);
-                    }
-                }
-                const bps = bpm / 60;
-                const secondsPerBeat = 1 / bps;
-                const measureDivisor = secondsPerBeat / valueSeconds * 4;
-                if (measureDivisor % 1 !== 0) {
-                    throw new Error(`measureDivisor is not a whole number: ${value}`);
-                } else {
-                    return measureDivisor;
-                }
-            }
-        } else {
-            return parseInt(value);
-        }
+    private convertSecondsToGridLength(value: number, measureResolution: number, bpm: number) {
+        // f(x) = x / secondsPerBeat / beatsPerMeasure * measureResolution
+        const spb = 1 / bpm / 60;
+        return value / spb / 4 * measureResolution;
+    }
+
+    private convertDivisorToGridLength(value: number, measureResolution: number) {
+        return measureResolution / value;
+    }
+
+    private convertBracketsLengthToGridLength(divisor: number, length: number, measureResolution: number) {
+        return length / divisor * measureResolution;
     }
 
     private shiftPosition(value: string, amount: number, direction: -1 | 1 = 1) {
@@ -316,61 +537,100 @@ export default class MaidataObjectsParser {
     }
 
     private isDecorator(item: string) {
+        if (item == null) {
+            return false;
+        }
         const matches = item.match(/^([@$bfhx]{0,3})$/);
         return matches != null && matches.length > 0;
     }
 
     private isSlideNotation(item: string) {
+        if (item == null) {
+            return false;
+        }
         const matches = item.match(/^([-^<>Vpqsvwz]{0,2})$/);
         return matches != null && matches.length > 0;
     }
 
     private isEndPosition(item: string) {
+        if (item == null) {
+            return false;
+        }
         const matches = item.match(/^([1-8])$/);
         return matches != null && matches.length > 0;
     }
 
     private isLength(item: string) {
+        if (item == null) {
+            return false;
+        }
         const matches = item.match(/^(\[\d+[:|#]{1,2}\d+])$/);
         return matches != null && matches.length > 0;
     }
 
     private isNormalLength(item: string) {
+        if (item == null) {
+            return false;
+        }
         const matches = item.match(/^(\[\d+:\d+])$/);
         return matches != null && matches.length > 0;
     }
 
     private isBpmLength(item: string) {
+        if (item == null) {
+            return false;
+        }
         const matches = item.match(/^(\[\d+#\d+])$/);
         return matches != null && matches.length > 0;
     }
 
     private isFixedLength(item: string) {
+        if (item == null) {
+            return false;
+        }
         const matches = item.match(/^(\[\d+##\d+])$/);
         return matches != null && matches.length > 0;
     }
 
     private hasBreakDecorator(item: string | string[]) {
+        if (item == null) {
+            return false;
+        }
         return item.includes('b');
     }
 
     private hasHoldDecorator(item: string | string[]) {
+        if (item == null) {
+            return false;
+        }
         return item.includes('h');
     }
 
     private hasFireworkDecorator(item: string | string[]) {
+        if (item == null) {
+            return false;
+        }
         return item.includes('f');
     }
 
     private hasExDecorator(item: string | string[]) {
+        if (item == null) {
+            return false;
+        }
         return item.includes('x');
     }
 
     private hasForceStarDecorator(item: string | string[]) {
+        if (item == null) {
+            return false;
+        }
         return item.includes('$');
     }
 
     private hasForceRingDecorator(item: string | string[]) {
+        if (item == null) {
+            return false;
+        }
         return item.includes('@');
     }
 }

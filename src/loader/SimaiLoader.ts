@@ -9,7 +9,7 @@ import MaidataObjectsParser from "./simai/MaidataObjectsParser";
 const {readFile} = fsPromises;
 
 export default class SimaiLoader extends Loader {
-    private static DEFAULT_GRIDS_PER_MEASURE = 384;
+    private static DEFAULT_MEASURE_RESOLUTION = 384;
     private static DEFAULT_BPM = 120;
     private static DEFAULT_LEVEL_VALUE = 0;
     static NOTES_DIFFICULTY_MAPPING = {
@@ -53,7 +53,7 @@ export default class SimaiLoader extends Loader {
             }
 
             if (rawNotesData != null) {
-                const parser = new MaidataObjectsParser(rawNotesData, SimaiLoader.DEFAULT_GRIDS_PER_MEASURE, bpm != null ? bpm : SimaiLoader.DEFAULT_BPM);
+                const parser = new MaidataObjectsParser(rawNotesData, SimaiLoader.DEFAULT_MEASURE_RESOLUTION, bpm != null ? bpm : SimaiLoader.DEFAULT_BPM);
                 const noteObjects = parser.getNoteObjects();
                 const bpmObjects = parser.getBpmObjects();
                 const timeSignatureObjects = parser.getTimeSignatureObjects();
@@ -63,7 +63,7 @@ export default class SimaiLoader extends Loader {
                     noteObjects,
                     bpmObjects,
                     timeSignatureObjects,
-                    gridsPerMeasure: SimaiLoader.DEFAULT_GRIDS_PER_MEASURE
+                    gridsPerMeasure: SimaiLoader.DEFAULT_MEASURE_RESOLUTION
                 });
             }
         }

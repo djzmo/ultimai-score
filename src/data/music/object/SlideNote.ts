@@ -3,7 +3,7 @@ import SlideType from "./SlideType";
 
 export default interface SlideNote extends Note {
     endPosition: number;
-    waitLength: number;
-    slideLength: number;
+    waitDuration: number;
+    travelDuration: number;
     slideType: SlideType;
 }
