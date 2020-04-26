@@ -1,5 +1,5 @@
 import {promises as fsPromises} from "fs";
-import MaidataParser from "../../../src/loader/simai/MaidataParser";
+import MaidataParser from "../../../src/importer/simai/MaidataParser";
 
 const {readFile} = fsPromises;
 

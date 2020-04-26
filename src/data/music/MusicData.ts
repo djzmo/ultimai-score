@@ -1,4 +1,6 @@
 import MusicNotesData from "./MusicNotesData";
+import MusicNotesDifficulty from "./MusicNotesDifficulty";
+import MusicStatistics from "./MusicStatistics";
 
 export default interface MusicData {
     title?: string;

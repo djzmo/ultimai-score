@@ -1,8 +1,8 @@
 
 enum SlideType {
     STRAIGHT, // SI_ / -
-    CURVE_L, // SCL / <
-    CURVE_R, // SCR / >
+    CURVE_L, // SCL / < (Counter-clockwise)
+    CURVE_R, // SCR / > (Clockwise)
     CENTER_ROTATION_LEFT, // SUL / p
     CENTER_ROTATION_RIGHT, // SUR / q
     LETTER_S_LEFT, // SSL / s
@@ -10,8 +10,8 @@ enum SlideType {
     LETTER_V, // SV_ / v
     SIDE_ROTATION_L, // SXL / pp
     SIDE_ROTATION_R, // SXR / qq
-    L_TAG_L, // SLL / V
-    L_TAG_R, // SLR / V
+    REFRACTIVE_L, // SLL / V
+    REFRACTIVE_R, // SLR / V
     FAN // SF_ / w
 }
 

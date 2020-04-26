@@ -1,10 +1,11 @@
-import Loader from "./Loader";
+import Importer from "./Importer";
 import MusicData from "../data/music/MusicData";
 import Ma2MusicData from "../data/music/format/Ma2MusicData";
 import MusicNotesData from "../data/music/MusicNotesData";
+import MusicNotesDifficulty from "../data/music/MusicNotesDifficulty";
 
-export default class Ma2Loader extends Loader {
-    public load(path: string): Promise<MusicData> {
+export default class Ma2Importer extends Importer {
+    public import(path: string): Promise<MusicData> {
         const musicData = this.loadMusic(path);
         // TODO
         return musicData;

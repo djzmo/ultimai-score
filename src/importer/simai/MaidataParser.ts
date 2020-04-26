@@ -7,15 +7,17 @@ export default class MaidataParser {
     }
 
     getString(key: string) {
-        return this.items.get(key);
+        const value = this.items.get(key);
+        return value != null && value.length === 0 ? undefined : value;
     }
 
     getNumber(key: string) {
         const stringValue = this.items.get(key);
         if (stringValue != null) {
-            return parseFloat(stringValue);
+            const numberValue = parseFloat(stringValue);
+            return isNaN(numberValue) ? undefined : numberValue;
         }
-        return stringValue;
+        return undefined;
     }
 
     private load(data: string) {
@@ -39,7 +41,7 @@ export default class MaidataParser {
             let value = row.substring(equalPos + 1).trim();
             if (key.startsWith('inote_')) {
                 value = value.replace(/\s+/g, '').trim();
-                if (value !== 'e') {
+                if (value.toLowerCase() !== 'e') {
                     if (value.startsWith('||')) {
                         value = '';
                     }

@@ -3,7 +3,10 @@
 
 &des=全難易度共通 ノーツデザイナー名義を書く
 &des_2=BASIC ノーツデザイナー名義を書く
+&des_3=ADVANCED ノーツデザイナー名義を書く
 &des_4=EXPERT ノーツデザイナー名義を書く
+&des_5=MASTER ノーツデザイナー名義を書く
+&des_6=Re:MASTER ノーツデザイナー名義を書く
 
 &seek=0
 &first=2.000

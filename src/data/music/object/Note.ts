@@ -6,4 +6,5 @@ export default interface Note extends BaseObject {
     position?: number;
     area: TouchArea;
     type: NoteType;
+    firework?: boolean;
 }

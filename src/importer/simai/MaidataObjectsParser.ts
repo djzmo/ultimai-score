@@ -1,39 +1,48 @@
 import Note from "../../data/music/object/Note";
 import Bpm from "../../data/music/object/Bpm";
-import SlideNote from "../../data/music/object/SlideNote";
 import SlideType from "../../data/music/object/SlideType";
 import TouchArea from "../../data/music/object/TouchArea";
 import NoteType from "../../data/music/object/NoteType";
 import HoldNote from "../../data/music/object/HoldNote";
+import TimeSignature from "../../data/music/object/TimeSignature";
+import MusicStatistics from "../../data/music/MusicStatistics";
 
 export default class MaidataObjectsParser {
-    private noteObjects: Note[];
-    private bpmObjects: Bpm[];
+    private _noteObjects: Note[];
+    private _bpmObjects: Bpm[];
+    private _timeSignatureObjects: TimeSignature[];
+    private _statistics?: MusicStatistics;
 
-    constructor(data: string, measureResolution: number, defaultBpm: number, defaultDivisor: number = 4) {
-        this.bpmObjects = [];
-        this.noteObjects = this.load(data, measureResolution, defaultBpm, defaultDivisor);
+    constructor() {
+        this._noteObjects = [];
+        this._bpmObjects = [];
+        this._timeSignatureObjects = [];
     }
 
-    getNoteObjects() {
-        return this.noteObjects;
+    get noteObjects() {
+        return this._noteObjects;
     }
 
-    getBpmObjects() {
-        return this.bpmObjects;
+    get bpmObjects() {
+        return this._bpmObjects;
     }
 
-    getTimeSignatureObjects() {
-        return [];
+    get timeSignatureObjects() {
+        return this._timeSignatureObjects;
+    }
+    
+    get statistics() {
+        return this._statistics;
     }
 
-    private load(data: string, measureResolution: number, defaultBpm: number, defaultDivisor: number) {
-        this.noteObjects = [];
-        this.bpmObjects = [];
+    parse(data: string, measureResolution: number, defaultBpm: number, defaultDivisor: number = 4) {
+        this._noteObjects = [];
+        this._bpmObjects = [];
+        this._timeSignatureObjects = [];
+        this._statistics = new MusicStatistics;
 
         let items = data.split(',');
         items.forEach((value: string, index: number) => items[index] = value.trim());
-        items = items.filter(v => v.length > 0);
         let bpm = defaultBpm;
         let restLength = measureResolution / defaultDivisor;
         let currentMeasure = 1, currentGrid = 0;
@@ -42,7 +51,7 @@ export default class MaidataObjectsParser {
             if (newBpm != null) {
                 item = this.trimBpm(item);
                 bpm = newBpm;
-                this.bpmObjects.push({bpm, measure: currentMeasure, grid: currentGrid});
+                this._bpmObjects.push({bpm, measure: currentMeasure, grid: currentGrid});
             }
 
             const divisor = this.parseDivisor(item, measureResolution, bpm);
@@ -55,8 +64,8 @@ export default class MaidataObjectsParser {
             }
 
             const noteObjects = this.parseEach(item, currentMeasure, currentGrid, measureResolution, bpm);
-            if (noteObjects != null) {
-                this.noteObjects.push(...noteObjects);
+            if (noteObjects != null && noteObjects.length > 0) {
+                this._noteObjects.push(...noteObjects);
             }
 
             currentGrid += restLength;
@@ -65,12 +74,13 @@ export default class MaidataObjectsParser {
                 currentMeasure++;
             }
         }
-        return this.noteObjects;
+        this._statistics?.calculateTotals();
+        return this._noteObjects;
     }
 
     // [<length>] -> <length>
     private parseLength(item: string): string | null {
-        const matches = item.match(/\[(\d+|#\d+\.?\d*|\d+\.?\d*(?:#{1,2})\d+\.?\d*|\d+\.?\d*(?::)\d+\.?\d*)]/);
+        const matches = item.match(/\[(#\d+\.?\d*|\d+\.?\d*(?:#{1,2})\d+\.?\d*|\d+\.?\d*(?::)\d+\.?\d*|\d+\.?\d*)]/);
         if (matches != null && matches.length > 0) {
             return matches[1];
         }
@@ -79,7 +89,7 @@ export default class MaidataObjectsParser {
 
     // {<divisor>} -> <divisor>
     private parseDivisor(item: string, measureResolution: number, bpm: number): string | null {
-        const matches = item.match(/{(\d+|#\d+\.?\d*|\d+\.?\d*(?:#{1,2})\d+\.?\d*)}/);
+        const matches = item.match(/{(.*?)}/);
         if (matches != null && matches.length > 0) {
             return matches[1];
         }
@@ -88,18 +98,18 @@ export default class MaidataObjectsParser {
 
     // {8}1 -> 1
     private trimDivisor(item: string): string {
-        return item.replace(/{(\d+|#\d+\.?\d*)}/g, '');
+        return item.replace(/{(.*?)}/g, '');
     }
 
     // (120)1 -> 120
     private parseBpm(item: string): number | null {
-        const matches = item.match(/\((\d+\.?\d*)\)/);
+        const matches = item.match(/\((.*?)\)/);
         if (matches != null && matches.length > 0) {
             const value = parseFloat(matches[1]);
             if (!isNaN(value)) {
                 return value;
             } else {
-                throw new Error(`Invalid BPM value in ${item}`);
+                throw new Error(`Invalid BPM value: ${matches[1]}`);
             }
         }
         return null;
@@ -110,6 +120,7 @@ export default class MaidataObjectsParser {
         return item.replace(/\((\d+\.?\d*)\)/g, '');
     }
 
+    // 12345678 | 1/2/3/4 | 1`2`3`4
     private parseEach(item: string,
                       measure: number,
                       grid: number,
@@ -129,8 +140,26 @@ export default class MaidataObjectsParser {
             }
         // 1/2/3/4 | 1`2`3`4
         } else {
-            const matches = item.match(/(?:[\/`])?([a-zA-Z0-9\[\]:.^<>*?!\-@$#`]+)/g);
+            const matches = item.match(/(?:[`\/])?([a-zA-Z0-9\[\]:.^<>*?!\-@$#]+)/g);
             if (matches != null && matches.length > 0) {
+                // Preprocess sequence with each notation
+                // 3V15[2:1]/3*v5[2:1] | 3V15[2:1]/*3v5[2:1] -> 3V15[2:1]*v5[2:1]
+                if (matches.length > 1) {
+                    let lastStartPosition = matches[0].charAt(0);
+                    for (let i = 1; i < matches.length; i++) {
+                        const match = matches[i];
+                        if (match.charAt(0) === '/' && match.indexOf('*') !== -1) {
+                            const currentStartPosition = match.charAt(1) === '*' ? matches[i].charAt(2) : matches[i].charAt(1);
+                            if (lastStartPosition === currentStartPosition) {
+                                const suffix = '*' + match.substring(3);
+                                matches[0] = matches[0].concat(suffix);
+                                matches.splice(i, 1);
+                                i--;
+                            }
+                        }
+                    }
+                }
+                
                 let pseudoIndex = 0;
                 for (const match of matches) {
                     const isPseudo = match.charAt(0) === '`';
@@ -140,7 +169,7 @@ export default class MaidataObjectsParser {
                         grid,
                         measureResolution,
                         bpm,
-                        pseudoIndex++);
+                        isPseudo ? ++pseudoIndex : 0);
                     if (producedNotes != null && producedNotes.length > 0) {
                         eachNotes.push(...producedNotes);
                     }
@@ -150,43 +179,33 @@ export default class MaidataObjectsParser {
         return eachNotes;
     }
 
+    // 1-4[4:1]*-7[4:1]*-3[4:1]
     private parseMultiple(item: string,
                           measure: number,
                           grid: number,
                           measureResolution: number,
                           bpm: number,
                           pseudoIndex: number = 0): Note[] {
-        const matches = item.match(/(?:\*!?)?([a-zA-Z0-9\[\]:.^<>?!\-@$#`]+)/g);
+        const matches = item.match(/(?:\*)?([a-zA-Z0-9\[\]:.^<>?!\-@$#`]+)/g);
         const notes: Note[] = [];
         if (matches != null && matches.length > 0) {
-            let startPosition = Number(matches[0].charAt(0));
-            if (isNaN(startPosition)) {
-                throw new Error(`Start of a sequence must be of a button position: ${item}`);
-            }
-            let lastEndPosition = -1;
-            for (const match of matches) {
-                const isMultipleEnding = match.charAt(0) === '*'; // 1-4[4:1]*-7[4:1]*-2[4:1]
-                const isSequenceWithStar = match.charAt(0) === '?'; // 1-4[4:1]?-7[4:1]?-2[4:1]
-                const isSequenceWithoutStar = match.charAt(0) === '!'; // 1-4[4:1]!-7[4:1]!-2[4:1]
-                const isSequence = isMultipleEnding || isSequenceWithStar || isSequenceWithoutStar;
-                const producedNotes = this.parseSingle(isSequence ? startPosition.toString() + match.substring(1) : match,
-                    measure,
-                    grid + pseudoIndex,
-                    measureResolution,
-                    bpm,
-                    isSequence ? match.charAt(0) : undefined);
-                if (producedNotes != null) {
-                    for (const i in producedNotes) {
-                        const note = producedNotes[i];
-                        if (note.type === NoteType.SLIDE) {
-                            const slideNote = <SlideNote> producedNotes[i];
-                            if (isSequenceWithStar || isSequenceWithoutStar) {
-                                slideNote.position = lastEndPosition;
-                            }
-                            lastEndPosition = slideNote.endPosition;
-                        }
+            const isTouchPosition = this.isTouchPosition(matches[0]);
+            if (isTouchPosition) {
+                const producedNotes = this.parseSingle(matches[0], measure, grid + pseudoIndex, measureResolution, bpm);
+                notes.push(...producedNotes);
+            } else {
+                let startPosition = matches[0].charAt(0);
+                for (const match of matches) {
+                    const isHeadless = match.charAt(0) === '*'; // 1-4[4:1]*-7[4:1]*-2[4:1]
+                    const producedNotes = this.parseSingle(isHeadless ? startPosition.toString() + match.substring(1) : match,
+                        measure,
+                        grid + pseudoIndex,
+                        measureResolution,
+                        bpm,
+                        isHeadless);
+                    if (producedNotes != null && producedNotes.length > 0) {
+                        notes.push(...producedNotes);
                     }
-                    notes.push(...producedNotes);
                 }
             }
         }
@@ -198,8 +217,8 @@ export default class MaidataObjectsParser {
                         grid: number,
                         measureResolution: number,
                         bpm: number,
-                        sequenceType?: string): Note[] {
-        const matches = item.match(/^([1-8]|[ABDE][1-8]|C)([@$bfhx]{0,3})?([-^<>Vpqsvwz]{0,2})?([1-8]{1,2})?(\[\d+[:|#]{1,2}\d+])?/);
+                        isHeadless?: boolean): Note[] {
+        const matches = item.match(/^([1-8]|[ABDE][1-8]|C)([@$bfhx!?]{0,3})?([-^<>Vpqsvwz]{0,2})?([1-8]{1,2})?(\[#\d+\.?\d*]|\[\d+\.?\d*(?:#{1,2})\d+\.?\d*]|\[\d+\.?\d*:\d+\.?\d*]|\[\d+\.?\d*])?/);
         if (matches != null && matches.length > 0) {
             const startPosition = matches[1];
             const decoratorOrSlideNotationOrLength = matches[2];
@@ -248,6 +267,23 @@ export default class MaidataObjectsParser {
             if (slideNotation != null && this.isTouchPosition(startPosition)) {
                 throw new Error(`Illegal start position for slide: ${item}`);
             }
+            if (slideNotation == null && (this.hasNoStarDecorator(decorators) || this.hasSuddenStarDecorator(decorators))) {
+                throw new Error(`Illegal star decorator for types other than slide: ${item}`);
+            }
+            if (slideNotation != null) {
+                if (!isNaN(Number(startPosition)) && !isNaN(Number(endPosition))) {
+                    const nStartPosition = Number(startPosition);
+                    const nEndPosition = Number(endPosition);
+                    if (nStartPosition === nEndPosition && (slideNotation === '-' || slideNotation === '^' || slideNotation === 'v' ||
+                        slideNotation === 'V' || slideNotation === 's' || slideNotation === 'z' || slideNotation === 'w')) {
+                        throw new Error(`Illegal end position for slide type: ${item}`);
+                    } else if (slideNotation === '^' && Math.abs(this.calculateDistance(nStartPosition, nEndPosition)) === 4) {
+                        throw new Error(`Illegal start-end distance for '^' slide: ${item}`);
+                    } else if ('wsz'.includes(slideNotation) && Math.abs(this.calculateDistance(nStartPosition, nEndPosition)) !== 4) {
+                        throw new Error(`Illegal start-end distance for 's'/'w'/'z' slide: ${item}`);
+                    }
+                }
+            }
             if (this.hasHoldDecorator(decorators)) {
                 if (endPosition != null) {
                     throw new Error(`Illegal end position for hold: ${item}`);
@@ -257,11 +293,15 @@ export default class MaidataObjectsParser {
                     throw new Error(`Illegal force decorator for hold: ${item}`);
                 } else if (!this.isButtonPosition(startPosition) && startPosition !== 'C') {
                     throw new Error(`Illegal start position for hold: ${item}`);
+                } else if (length != null && length.indexOf('#') !== -1) {
+                    throw new Error(`Illegal hash length for hold: ${item}`);
+                } else if (this.hasNoStarDecorator(decorators) || this.hasSuddenStarDecorator(decorators)) {
+                    throw new Error(`Illegal star decorator for hold: ${item}`);
                 }
             }
             if (this.hasFireworkDecorator(decorators)) {
                 if (startPosition !== 'C') {
-                    throw new Error(`Illegal start position for firework decorator: ${item}`);
+                    throw new Error(`Illegal position for firework decorator: ${item}`);
                 } else if (this.hasBreakDecorator(decorators)) {
                     throw new Error(`Illegal break decorator for firework decorator: ${item}`)
                 } else if (this.hasForceRingDecorator(decorators) || this.hasForceStarDecorator(decorators)) {
@@ -272,81 +312,96 @@ export default class MaidataObjectsParser {
             }
             if (this.hasBreakDecorator(decorators)) {
                 if (this.hasExDecorator(decorators)) {
-                    throw new Error(`Illegal EX decorator for break decorator: ${item}`);
+                    throw new Error(`EX decorator cannot be used at the same time with break decorator: ${item}`);
                 } else if (this.isTouchPosition(decorators)) {
                     throw new Error(`Invalid start position for break decorator: ${item}`);
+                } else if (this.hasNoStarDecorator(decorators) || this.hasSuddenStarDecorator(decorators)) {
+                    throw new Error(`Star decorator cannot be used at the same time with break decorator: ${item}`);
                 }
             }
             if (endPosition != null && endPosition.length === 2) {
                 if (slideNotation !== 'V') {
                     throw new Error(`Illegal end position for slide type: ${item}`);
                 } else {
-                    const tagPosition = endPosition.charAt(0);
+                    const refractPosition = endPosition.charAt(0);
                     const nStartPosition = Number(startPosition);
-                    if (this.shiftPosition(tagPosition, 2, -1) !== nStartPosition &&
-                        this.shiftPosition(tagPosition, 2, 1) !== nStartPosition) {
-                        throw new Error(`Tag position for tag slide may only shift by 2: ${item}`);
+                    if (this.shiftPosition(refractPosition, 2, -1) !== nStartPosition &&
+                        this.shiftPosition(refractPosition, 2, 1) !== nStartPosition) {
+                        throw new Error(`Refract position for refractive slide must only be two steps away: ${item}`);
                     }
                 }
             }
 
             // Construct
             if (slideNotation != null) {
-                const durationMap = this.convertWaitTravelMapToGridLength(length, measureResolution, bpm);
+                const parsedLength = this.parseLength(length);
+                if (parsedLength == null) {
+                    throw new Error(`Invalid length format: ${length}`);
+                }
+                const durationMap = this.convertWaitTravelMapToGridLength(parsedLength, measureResolution, bpm);
                 let waitDuration = measureResolution / 4, travelDuration; // wait duration is always one beat by default
                 if (durationMap != null) {
                     waitDuration = durationMap.waitDuration;
                     travelDuration = durationMap.travelDuration;
                 } else {
-                    travelDuration = this.toGridLength(length, measureResolution, bpm);
+                    travelDuration = this.toGridLength(parsedLength, measureResolution, bpm);
                 }
+
                 const nStartPosition = Number(startPosition);
                 let slideType = this.toSlideType(slideNotation);
                 if (slideNotation === 'V') {
-                    const tagPosition = endPosition?.charAt(0);
-                    slideType = this.shiftPosition(tagPosition, 2, -1) === nStartPosition ? SlideType.L_TAG_L : SlideType.L_TAG_R;
+                    const refractPosition = endPosition?.charAt(0);
+                    slideType = this.shiftPosition(startPosition, 2, -1) === Number(refractPosition) ? SlideType.REFRACTIVE_L : SlideType.REFRACTIVE_R;
                     endPosition = endPosition?.charAt(1);
+                } else if (slideNotation === '^') {
+                    const nEndPosition = Number(endPosition);
+                    const distance = this.calculateDistance(nStartPosition, nEndPosition);
+                    slideType = this.shiftPosition(startPosition, distance, -1) === nEndPosition ? SlideType.CURVE_L : SlideType.CURVE_R;
                 }
-                const nEndPosition = Number(endPosition);
 
                 const notes: Note[] = [];
-
-                if (sequenceType == null || sequenceType === '?') {
+                if (!this.hasNoStarDecorator(decorators) && !isHeadless) {
                     const starType = this.hasBreakDecorator(decorators) ? NoteType.BREAK_STAR :
                         (this.hasExDecorator(decorators) ? NoteType.EX_STAR : NoteType.STAR);
                     const ringType = this.hasBreakDecorator(decorators) ? NoteType.BREAK :
                         (this.hasExDecorator(decorators) ? NoteType.EX_TAP : NoteType.TAP);
-                    notes.push({
+                    const starNote = {
                         grid,
                         measure,
                         position: nStartPosition,
                         area: TouchArea.A,
                         type: this.hasForceRingDecorator(decorators) ? ringType : starType
-                    });
+                    };
+                    this._statistics?.increment(starNote.type);
+                    notes.push(starNote);
                 }
 
-                notes.push(<Note>{
+                const slideNote = {
                     grid,
                     measure,
                     position: nStartPosition,
                     area: TouchArea.A,
                     type: NoteType.SLIDE,
                     slideType,
-                    endPosition: nEndPosition,
+                    endPosition: Number(endPosition),
                     waitDuration,
                     travelDuration
-                });
+                };
 
+                this._statistics?.increment(slideNote.type);
+                notes.push(<Note>slideNote);
                 return notes;
             } else if (this.hasHoldDecorator(decorators)) {
                 const position = this.isButtonPosition(startPosition) ? Number(startPosition) :
                     startPosition === 'C' ? undefined : Number(startPosition.charAt(1));
                 const area = this.toTouchArea(startPosition);
+                const firework = startPosition === 'C' && this.hasFireworkDecorator(decorators);
                 const note: HoldNote = {
                     grid,
                     measure,
                     position,
                     area,
+                    firework,
                     type: startPosition === 'C' ? NoteType.TOUCH_HOLD :
                         (this.hasExDecorator(decorators) ? NoteType.EX_HOLD : NoteType.HOLD)
                 };
@@ -359,7 +414,7 @@ export default class MaidataObjectsParser {
                         throw new Error(`Unable to parse hold length: ${length}`);
                     }
                 }
-
+                this._statistics?.increment(note.type);
                 return [<Note>note];
             } else {
                 const position = this.isButtonPosition(startPosition) ? Number(startPosition) :
@@ -369,17 +424,21 @@ export default class MaidataObjectsParser {
                     (this.hasExDecorator(decorators) ? NoteType.EX_STAR : NoteType.STAR));
                 const ringType = (this.hasBreakDecorator(decorators) ? NoteType.BREAK :
                     (this.hasExDecorator(decorators) ? NoteType.EX_TAP : NoteType.TAP));
+                const firework = startPosition === 'C' && this.hasFireworkDecorator(decorators);
                 const note: Note = {
                     grid,
                     measure,
                     position,
                     area,
+                    firework,
                     type: this.isTouchPosition(startPosition) ? NoteType.TOUCH_TAP :
                         this.hasForceStarDecorator(decorators) ? starType : ringType
                 };
-
+                this._statistics?.increment(note.type);
                 return [note];
             }
+        } else {
+            throw new Error(`Unable to parse object: ${item}`);
         }
         return [];
     }
@@ -410,14 +469,14 @@ export default class MaidataObjectsParser {
                 bpm = parseFloat(value.substring(0, value.indexOf('#')));
                 rawDuration = value.substring(value.indexOf('#') + 1);
                 if (isNaN(bpm)) {
-                    throw new Error(`Invalid value during conversion: ${value}`);
+                    throw new Error(`Invalid BPM value: ${value}`);
                 }
             } else {
                 rawDuration = value.substring(1);
             }
             const secondsDuration = parseFloat(rawDuration);
             if (isNaN(secondsDuration)) {
-                throw new Error(`Invalid duration during conversion: ${value}`);
+                throw new Error(`Invalid seconds duration value: ${value}`);
             }
             return this.convertSecondsToGridLength(secondsDuration, measureResolution, bpm);
         // <divisor>:<length>
@@ -430,14 +489,14 @@ export default class MaidataObjectsParser {
                     return this.convertBracketsLengthToGridLength(divisor, length, measureResolution);
                 }
             }
-            throw new Error(`Conversion failed due to invalid length: ${value}`);
+            throw new Error(`Invalid length: ${value}`);
         } else {
             const divisor = parseInt(value);
             if (!isNaN(divisor)) {
                 return 1 / divisor * measureResolution;
             }
         }
-        throw new Error(`Conversion failed due to unrecognized length format: ${value}`);
+        throw new Error(`Unrecognized length format: ${value}`);
     }
 
     // <slideNotation> -> <slideType>
@@ -446,6 +505,7 @@ export default class MaidataObjectsParser {
         switch (value) {
             case '-':
                 return SlideType.STRAIGHT;
+            case '^': // case '^' should be further handled to decide L/R
             case '<':
                 return SlideType.CURVE_L;
             case '>':
@@ -465,7 +525,7 @@ export default class MaidataObjectsParser {
             case 'qq':
                 return SlideType.SIDE_ROTATION_R;
             case 'V': // case 'V' should be further handled to decide L/R
-                return SlideType.L_TAG_L;
+                return SlideType.REFRACTIVE_L;
             case 'w':
                 return SlideType.FAN;
         }
@@ -490,7 +550,8 @@ export default class MaidataObjectsParser {
 
     private convertSecondsToGridLength(value: number, measureResolution: number, bpm: number) {
         // f(x) = x / secondsPerBeat / beatsPerMeasure * measureResolution
-        const spb = 1 / bpm / 60;
+        const bps = bpm / 60;
+        const spb = 1 / bps;
         return value / spb / 4 * measureResolution;
     }
 
@@ -500,6 +561,16 @@ export default class MaidataObjectsParser {
 
     private convertBracketsLengthToGridLength(divisor: number, length: number, measureResolution: number) {
         return length / divisor * measureResolution;
+    }
+
+    calculateDistance(a: number, b: number) {
+        if (a === b) {
+            return 0;
+        }
+        const low = a < b ? a : b;
+        const high = a > b ? a : b;
+        const shortest = Math.min(high - low, low + 8 - high);
+        return Math.abs(shortest);
     }
 
     private shiftPosition(value: string, amount: number, direction: -1 | 1 = 1) {
@@ -533,14 +604,14 @@ export default class MaidataObjectsParser {
         const left = item.charAt(0);
         const right = item.length > 1 ? item.charAt(1) : '';
         return (right.length === 0 && left === 'C') ||
-            (['ABDE'].includes(left) && this.isButtonPosition(right));
+            ('ABDE'.includes(left) && this.isButtonPosition(right));
     }
 
     private isDecorator(item: string) {
         if (item == null) {
             return false;
         }
-        const matches = item.match(/^([@$bfhx]{0,3})$/);
+        const matches = item.match(/^([@$bfhx!?]{0,3})$/);
         return matches != null && matches.length > 0;
     }
 
@@ -556,7 +627,7 @@ export default class MaidataObjectsParser {
         if (item == null) {
             return false;
         }
-        const matches = item.match(/^([1-8])$/);
+        const matches = item.match(/^([1-8]{1,2})$/);
         return matches != null && matches.length > 0;
     }
 
@@ -564,7 +635,7 @@ export default class MaidataObjectsParser {
         if (item == null) {
             return false;
         }
-        const matches = item.match(/^(\[\d+[:|#]{1,2}\d+])$/);
+        const matches = item.match(/^(\[#\d+\.?\d*]|\[\d+\.?\d*(?:#{1,2})\d+\.?\d*]|\[\d+\.?\d*:\d+\.?\d*]|\[\d+\.?\d*])$/);
         return matches != null && matches.length > 0;
     }
 
@@ -572,7 +643,7 @@ export default class MaidataObjectsParser {
         if (item == null) {
             return false;
         }
-        const matches = item.match(/^(\[\d+:\d+])$/);
+        const matches = item.match(/^(\[\d+\.?\d*:\d+\.?\d*])$/);
         return matches != null && matches.length > 0;
     }
 
@@ -580,7 +651,15 @@ export default class MaidataObjectsParser {
         if (item == null) {
             return false;
         }
-        const matches = item.match(/^(\[\d+#\d+])$/);
+        const matches = item.match(/^(\[\d+\.?\d*#\d+\.?\d*])$/);
+        return matches != null && matches.length > 0;
+    }
+
+    private isSecondsLength(item: string) {
+        if (item == null) {
+            return false;
+        }
+        const matches = item.match(/^(\[#\d+\.?\d*])$/);
         return matches != null && matches.length > 0;
     }
 
@@ -588,7 +667,7 @@ export default class MaidataObjectsParser {
         if (item == null) {
             return false;
         }
-        const matches = item.match(/^(\[\d+##\d+])$/);
+        const matches = item.match(/^(\[\d+\.?\d*##\d+\.?\d*])$/);
         return matches != null && matches.length > 0;
     }
 
@@ -632,5 +711,19 @@ export default class MaidataObjectsParser {
             return false;
         }
         return item.includes('@');
+    }
+
+    private hasNoStarDecorator(item: string | string[]) {
+        if (item == null) {
+            return false;
+        }
+        return item.includes('?');
+    }
+
+    private hasSuddenStarDecorator(item: string | string[]) { // TODO
+        if (item == null) {
+            return false;
+        }
+        return item.includes('!');
     }
 }

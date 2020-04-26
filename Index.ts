@@ -1,5 +1,6 @@
 import Mymai from "./src/Mymai";
 
 (async() => {
-    new Mymai(process.argv.slice(2));
+    const mymai = new Mymai;
+    await mymai.handle(process.argv.slice(2));
 })();

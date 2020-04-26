@@ -1,51 +1,68 @@
 import commandLineArgs from "command-line-args";
-import MymaiCommandLineOptions from "./data/cli/MymaiCommandLineOptions";
 import SourceFormat from "./data/cli/SourceFormat";
-import Loader from "./loader/Loader";
-import Generator from "./generator/Generator";
-import SimaiLoader from "./loader/SimaiLoader";
-import Ma2Loader from "./loader/Ma2Loader";
 import TargetFormat from "./data/cli/TargetFormat";
-import SimaiGenerator from "./generator/SimaiGenerator";
-import Ma2Generator from "./generator/Ma2Generator";
+import MymaiCommandLineOptions from "./data/cli/MymaiCommandLineOptions";
+import Importer from "./importer/Importer";
+import Exporter from "./exporter/Exporter";
+import SimaiImporter from "./importer/SimaiImporter";
+import Ma2Importer from "./importer/Ma2Importer";
+import SimaiExporter from "./exporter/SimaiExporter";
+import Ma2Exporter from "./exporter/Ma2Exporter";
 
 export default class Mymai {
-    public static NAME = "mymai";
-    public static VERSION = "0.9.0";
-    private options: MymaiCommandLineOptions;
-    private loaders: Map<SourceFormat, Loader> = new Map<SourceFormat, Loader>();
-    private generators: Map<TargetFormat, Generator> = new Map<TargetFormat, Generator>();
+    public static NAME = 'mymai';
+    public static VERSION = '1.0.0';
+    private isInitialized: boolean = false;
+    private _importers: Map<SourceFormat, Importer> = new Map<SourceFormat, Importer>();
+    private _exporters: Map<TargetFormat, Exporter> = new Map<TargetFormat, Exporter>();
 
-    constructor(args: string[]) {
-        this.options = commandLineArgs(this.getOptionDefinitions());
-        if (args.length === 0 || this.options.help || this.options.files == null || this.options.files.length == 0) {
+    get importers() {
+        return this._importers;
+    }
+
+    get exporters() {
+        return this._exporters;
+    }
+
+    async handle(args: string[]) {
+        const options: MymaiCommandLineOptions = commandLineArgs(this.getOptionDefinitions());
+        if (args.length === 0 || options.help || options.files == null || options.files.length == 0) {
             this.showHelp();
         } else {
-            this.initLoaders();
-            this.initGenerators();
+            if (!this.isInitialized) {
+                this.initConsumers();
+                this.initProducers();
+                this.isInitialized = true;
+            }
 
-            const sourceFormat = this.options.sourceFormat != null ? SourceFormat[this.options.sourceFormat] : SourceFormat.SIMAI;
-            for (const path of this.options.files) {
-                this.loadSource(path, sourceFormat);
+            const sourceFormat = options.sourceFormat != null ? SourceFormat[options.sourceFormat] : SourceFormat.SIMAI;
+            const targetFormat = options.targetFormat != null ? TargetFormat[options.targetFormat] : TargetFormat.MA2;
+            for (const path of options.files) {
+                console.log(`Importing source: [${sourceFormat}] ${path}...`);
+                const consumer = this._importers.get(sourceFormat);
+                if (consumer != null) {
+                    const musicData = await consumer.import(path);
+                    if (musicData != null) {
+                        console.log(`Exporting target: [${targetFormat}] ${path}...`);
+                    }
+                } else {
+                    console.log(`No suitable importer was found for '${path}' (${sourceFormat})`);
+                }
             }
         }
     }
 
-    loadSource(path: string, format: SourceFormat) {
-
+    private initConsumers() {
+        this._importers.set(SourceFormat.SIMAI, new SimaiImporter);
+        this._importers.set(SourceFormat.MA2, new Ma2Importer);
     }
 
-    initLoaders() {
-        this.loaders.set(SourceFormat.SIMAI, new SimaiLoader);
-        this.loaders.set(SourceFormat.MA2, new Ma2Loader);
+    private initProducers() {
+        this._exporters.set(TargetFormat.SIMAI, new SimaiExporter);
+        this._exporters.set(TargetFormat.MA2, new Ma2Exporter);
     }
 
-    initGenerators() {
-        this.generators.set(TargetFormat.SIMAI, new SimaiGenerator);
-        this.generators.set(TargetFormat.MA2, new Ma2Generator);
-    }
-
-    getOptionDefinitions() {
+    private getOptionDefinitions() {
         return [
             { name: 'help', alias: 'h', type: Boolean },
             { name: 'outDir', alias: 'o', type: String },
@@ -55,7 +72,7 @@ export default class Mymai {
         ];
     }
 
-    showHelp() {
+    private showHelp() {
         console.log(`Version ${Mymai.VERSION}`);
         console.log(`Usage:    ${Mymai.NAME} [options] [file...]\n`);
 
