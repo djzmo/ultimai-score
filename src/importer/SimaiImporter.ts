@@ -1,4 +1,5 @@
-import {promises as fsPromises} from "fs";
+import {promises as fsPromises} from 'fs';
+import isNumber from 'is-number';
 import Importer from "./Importer";
 import MusicData from "../data/music/MusicData";
 import SimaiMusicData from "../data/music/format/SimaiMusicData";
@@ -30,9 +31,9 @@ export default class SimaiImporter extends Importer {
             const rawNotesData = maidata.getString(`inote_${i}`);
             const designer = this.extractDesigner(maidata, i);
             const level = this.extractLevel(maidata, i, SimaiImporter.DEFAULT_LEVEL_VALUE);
-            if (rawNotesData != null && rawNotesData.length > 0) {
+            if (rawNotesData && rawNotesData.length > 0) {
                 const parser = new MaidataObjectsParser;
-                parser.parse(rawNotesData, SimaiImporter.DEFAULT_MEASURE_RESOLUTION, bpm != null ? bpm : SimaiImporter.DEFAULT_BPM);
+                parser.parse(rawNotesData, SimaiImporter.DEFAULT_MEASURE_RESOLUTION, bpm ? bpm : SimaiImporter.DEFAULT_BPM);
 
                 const {noteObjects, bpmObjects, timeSignatureObjects, statistics} = parser;
                 notesData.set(i, {
@@ -52,14 +53,14 @@ export default class SimaiImporter extends Importer {
 
     private extractLevel(parser: MaidataParser, i: number, defaultLevel?: number) {
         const level = parser.getString(`lv_${i}`);
-        if (level != null) {
-            if (!isNaN(Number(level))) {
+        if (level) {
+            if (isNumber(level)) {
                 return Number(level);
-            } else if (level.charAt(level.length - 1) === '+' && !isNaN(Number(level.substring(0, level.length - 1)))) {
+            } else if (level.charAt(level.length - 1) === '+' && isNumber(level.substring(0, level.length - 1))) {
                 return Number(level.substring(0, level.length - 1)) + 0.5;
             }
         }
-        return 0;
+        return defaultLevel ? defaultLevel : 0;
     }
 
     private extractDesigner(parser: MaidataParser, i: number) {

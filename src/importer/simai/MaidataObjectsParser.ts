@@ -1,3 +1,4 @@
+import isNumber from 'is-number';
 import Note from "../../data/music/object/Note";
 import Bpm from "../../data/music/object/Bpm";
 import SlideType from "../../data/music/object/SlideType";
@@ -38,7 +39,7 @@ export default class MaidataObjectsParser {
     parse(data: string, measureResolution: number, defaultBpm: number, defaultDivisor: number = 4) {
         this._noteObjects = [];
         this._bpmObjects = [];
-        this._timeSignatureObjects = [];
+        this._timeSignatureObjects = [{divisor: 4, beatLength: 4, grid: 0, measure: 0}];
         this._statistics = new MusicStatistics;
 
         let items = data.split(',');
@@ -48,23 +49,23 @@ export default class MaidataObjectsParser {
         let currentMeasure = 1, currentGrid = 0;
         for (let item of items) {
             const newBpm = this.parseBpm(item);
-            if (newBpm != null) {
+            if (newBpm) {
                 item = this.trimBpm(item);
                 bpm = newBpm;
                 this._bpmObjects.push({bpm, measure: currentMeasure, grid: currentGrid});
             }
 
             const divisor = this.parseDivisor(item, measureResolution, bpm);
-            if (divisor != null) {
+            if (divisor) {
                 const newRestLength = this.toGridLength(divisor, measureResolution, bpm);
-                if (!isNaN(Number(newRestLength))) {
+                if (isNumber(newRestLength)) {
                     restLength = newRestLength;
                 }
                 item = this.trimDivisor(item);
             }
 
             const noteObjects = this.parseEach(item, currentMeasure, currentGrid, measureResolution, bpm);
-            if (noteObjects != null && noteObjects.length > 0) {
+            if (noteObjects && noteObjects.length > 0) {
                 this._noteObjects.push(...noteObjects);
             }
 
@@ -74,26 +75,27 @@ export default class MaidataObjectsParser {
                 currentMeasure++;
             }
         }
+
         this._statistics?.calculateTotals();
         return this._noteObjects;
     }
 
     // [<length>] -> <length>
-    private parseLength(item: string): string | null {
+    private parseLength(item: string): string | undefined {
         const matches = item.match(/\[(#\d+\.?\d*|\d+\.?\d*(?:#{1,2})\d+\.?\d*|\d+\.?\d*(?::)\d+\.?\d*|\d+\.?\d*)]/);
-        if (matches != null && matches.length > 0) {
+        if (matches && matches.length > 0) {
             return matches[1];
         }
-        return null;
+        return undefined;
     }
 
     // {<divisor>} -> <divisor>
-    private parseDivisor(item: string, measureResolution: number, bpm: number): string | null {
+    private parseDivisor(item: string, measureResolution: number, bpm: number): string | undefined {
         const matches = item.match(/{(.*?)}/);
-        if (matches != null && matches.length > 0) {
+        if (matches && matches.length > 0) {
             return matches[1];
         }
-        return null;
+        return undefined;
     }
 
     // {8}1 -> 1
@@ -102,17 +104,17 @@ export default class MaidataObjectsParser {
     }
 
     // (120)1 -> 120
-    private parseBpm(item: string): number | null {
+    private parseBpm(item: string): number | undefined {
         const matches = item.match(/\((.*?)\)/);
-        if (matches != null && matches.length > 0) {
-            const value = parseFloat(matches[1]);
-            if (!isNaN(value)) {
+        if (matches && matches.length > 0) {
+            const value = Number(matches[1]);
+            if (isNumber(value)) {
                 return value;
             } else {
                 throw new Error(`Invalid BPM value: ${matches[1]}`);
             }
         }
-        return null;
+        return undefined;
     }
 
     // (120)1 -> 1
@@ -128,12 +130,12 @@ export default class MaidataObjectsParser {
                       bpm: number): Note[] {
         let eachNotes: Note[] = [];
         // 12345678
-        if (item.length >= 2 && item.length <= 8 && !isNaN(Number(item))) {
+        if (item.length >= 2 && item.length <= 8 && isNumber(item)) {
             const matches = item.match(/([1-8])/g);
-            if (matches != null && matches.length > 0) {
+            if (matches && matches.length > 0) {
                 for (const match of matches) {
                     const producedNotes = this.parseSingle(match, measure, grid, measureResolution, bpm);
-                    if (producedNotes != null) {
+                    if (producedNotes) {
                         eachNotes.push(...producedNotes);
                     }
                 }
@@ -141,7 +143,7 @@ export default class MaidataObjectsParser {
         // 1/2/3/4 | 1`2`3`4
         } else {
             const matches = item.match(/(?:[`\/])?([a-zA-Z0-9\[\]:.^<>*?!\-@$#]+)/g);
-            if (matches != null && matches.length > 0) {
+            if (matches && matches.length > 0) {
                 // Preprocess sequence with each notation
                 // 3V15[2:1]/3*v5[2:1] | 3V15[2:1]/*3v5[2:1] -> 3V15[2:1]*v5[2:1]
                 if (matches.length > 1) {
@@ -170,7 +172,7 @@ export default class MaidataObjectsParser {
                         measureResolution,
                         bpm,
                         isPseudo ? ++pseudoIndex : 0);
-                    if (producedNotes != null && producedNotes.length > 0) {
+                    if (producedNotes && producedNotes.length > 0) {
                         eachNotes.push(...producedNotes);
                     }
                 }
@@ -188,7 +190,7 @@ export default class MaidataObjectsParser {
                           pseudoIndex: number = 0): Note[] {
         const matches = item.match(/(?:\*)?([a-zA-Z0-9\[\]:.^<>?!\-@$#`]+)/g);
         const notes: Note[] = [];
-        if (matches != null && matches.length > 0) {
+        if (matches && matches.length > 0) {
             const isTouchPosition = this.isTouchPosition(matches[0]);
             if (isTouchPosition) {
                 const producedNotes = this.parseSingle(matches[0], measure, grid + pseudoIndex, measureResolution, bpm);
@@ -203,7 +205,7 @@ export default class MaidataObjectsParser {
                         measureResolution,
                         bpm,
                         isHeadless);
-                    if (producedNotes != null && producedNotes.length > 0) {
+                    if (producedNotes && producedNotes.length > 0) {
                         notes.push(...producedNotes);
                     }
                 }
@@ -219,7 +221,7 @@ export default class MaidataObjectsParser {
                         bpm: number,
                         isHeadless?: boolean): Note[] {
         const matches = item.match(/^([1-8]|[ABDE][1-8]|C)([@$bfhx!?]{0,3})?([-^<>Vpqsvwz]{0,2})?([1-8]{1,2})?(\[#\d+\.?\d*]|\[\d+\.?\d*(?:#{1,2})\d+\.?\d*]|\[\d+\.?\d*:\d+\.?\d*]|\[\d+\.?\d*])?/);
-        if (matches != null && matches.length > 0) {
+        if (matches && matches.length > 0) {
             const startPosition = matches[1];
             const decoratorOrSlideNotationOrLength = matches[2];
             const slideNotationOrEndPositionOrLength = matches[3];
@@ -252,26 +254,26 @@ export default class MaidataObjectsParser {
             if (!this.isButtonPosition(startPosition) && !this.isTouchPosition(startPosition)) {
                 throw new Error(`Invalid start position: ${item}`);
             }
-            if (slideNotation != null && endPosition == null) {
+            if (slideNotation && !endPosition) {
                 throw new Error(`Missing end position for slide: ${item}`);
             }
-            if (endPosition != null && slideNotation == null) {
+            if (endPosition && !slideNotation) {
                 throw new Error(`Missing mandatory slide notation for slide: ${item}`);
             }
-            if (slideNotation != null && endPosition != null && length == null) {
-                throw new Error(`Missing length for slide: ${item}`);
-            }
-            if (slideNotation != null && endPosition != null && this.isTouchPosition(endPosition)) {
-                throw new Error(`Illegal end position for slide: ${item}`);
-            }
-            if (slideNotation != null && this.isTouchPosition(startPosition)) {
-                throw new Error(`Illegal start position for slide: ${item}`);
-            }
-            if (slideNotation == null && (this.hasNoStarDecorator(decorators) || this.hasSuddenStarDecorator(decorators))) {
+            if (!slideNotation && (this.hasNoStarDecorator(decorators) || this.hasSuddenStarDecorator(decorators))) {
                 throw new Error(`Illegal star decorator for types other than slide: ${item}`);
             }
-            if (slideNotation != null) {
-                if (!isNaN(Number(startPosition)) && !isNaN(Number(endPosition))) {
+            if (slideNotation && endPosition && !length) {
+                throw new Error(`Missing length for slide: ${item}`);
+            }
+            if (slideNotation && endPosition && this.isTouchPosition(endPosition)) {
+                throw new Error(`Illegal end position for slide: ${item}`);
+            }
+            if (slideNotation && this.isTouchPosition(startPosition)) {
+                throw new Error(`Illegal start position for slide: ${item}`);
+            }
+            if (slideNotation) {
+                if (isNumber(startPosition) && isNumber(endPosition)) {
                     const nStartPosition = Number(startPosition);
                     const nEndPosition = Number(endPosition);
                     if (nStartPosition === nEndPosition && (slideNotation === '-' || slideNotation === '^' || slideNotation === 'v' ||
@@ -285,7 +287,7 @@ export default class MaidataObjectsParser {
                 }
             }
             if (this.hasHoldDecorator(decorators)) {
-                if (endPosition != null) {
+                if (endPosition) {
                     throw new Error(`Illegal end position for hold: ${item}`);
                 } else if (this.hasBreakDecorator(decorators)) {
                     throw new Error(`Illegal break decorator for hold: ${item}`);
@@ -293,7 +295,7 @@ export default class MaidataObjectsParser {
                     throw new Error(`Illegal force decorator for hold: ${item}`);
                 } else if (!this.isButtonPosition(startPosition) && startPosition !== 'C') {
                     throw new Error(`Illegal start position for hold: ${item}`);
-                } else if (length != null && length.indexOf('#') !== -1) {
+                } else if (length && length.indexOf('#') !== -1) {
                     throw new Error(`Illegal hash length for hold: ${item}`);
                 } else if (this.hasNoStarDecorator(decorators) || this.hasSuddenStarDecorator(decorators)) {
                     throw new Error(`Illegal star decorator for hold: ${item}`);
@@ -319,7 +321,7 @@ export default class MaidataObjectsParser {
                     throw new Error(`Star decorator cannot be used at the same time with break decorator: ${item}`);
                 }
             }
-            if (endPosition != null && endPosition.length === 2) {
+            if (endPosition && endPosition.length === 2) {
                 if (slideNotation !== 'V') {
                     throw new Error(`Illegal end position for slide type: ${item}`);
                 } else {
@@ -333,14 +335,14 @@ export default class MaidataObjectsParser {
             }
 
             // Construct
-            if (slideNotation != null) {
+            if (slideNotation) {
                 const parsedLength = this.parseLength(length);
-                if (parsedLength == null) {
+                if (!parsedLength) {
                     throw new Error(`Invalid length format: ${length}`);
                 }
                 const durationMap = this.convertWaitTravelMapToGridLength(parsedLength, measureResolution, bpm);
                 let waitDuration = measureResolution / 4, travelDuration; // wait duration is always one beat by default
-                if (durationMap != null) {
+                if (durationMap) {
                     waitDuration = durationMap.waitDuration;
                     travelDuration = durationMap.travelDuration;
                 } else {
@@ -406,9 +408,9 @@ export default class MaidataObjectsParser {
                         (this.hasExDecorator(decorators) ? NoteType.EX_HOLD : NoteType.HOLD)
                 };
 
-                if (length != null) {
+                if (length) {
                     const parsedLength = this.parseLength(length);
-                    if (parsedLength != null) {
+                    if (parsedLength) {
                         note.holdLength = this.toGridLength(parsedLength, measureResolution, bpm);
                     } else {
                         throw new Error(`Unable to parse hold length: ${length}`);
@@ -437,26 +439,24 @@ export default class MaidataObjectsParser {
                 this._statistics?.increment(note.type);
                 return [note];
             }
-        } else {
-            throw new Error(`Unable to parse object: ${item}`);
         }
-        return [];
+        throw new Error(`Unable to parse object: ${item}`);
     }
 
     // <waitDuration>##<travelDuration> -> {waitDurationGridLength, travelDurationGridLength}
     private convertWaitTravelMapToGridLength(value: string, measureResolution: number, defaultBpm: number) {
         if (value.indexOf('##') > 0) {
             const splitValue = value.split('##');
-            const waitDuration = parseFloat(splitValue[0]);
-            const travelDuration = parseFloat(splitValue[1]);
-            if (!isNaN(waitDuration) && !isNaN(travelDuration)) {
+            const waitDuration = Number(splitValue[0]);
+            const travelDuration = Number(splitValue[1]);
+            if (isNumber(waitDuration) && isNumber(travelDuration)) {
                 return {
                     waitDuration: this.convertSecondsToGridLength(waitDuration, measureResolution, defaultBpm),
                     travelDuration: this.convertSecondsToGridLength(travelDuration, measureResolution, defaultBpm)
                 };
             }
         }
-        return null;
+        return undefined;
     }
 
     // (<divisor> | <divisor>:<length> | #<ravelDuration> | <bpm>#<travelDuration>) -> <restLength>
@@ -466,16 +466,16 @@ export default class MaidataObjectsParser {
         if (value.indexOf('#') !== -1) {
             let rawDuration;
             if (value.indexOf('#') > 0) {
-                bpm = parseFloat(value.substring(0, value.indexOf('#')));
+                bpm = Number(value.substring(0, value.indexOf('#')));
                 rawDuration = value.substring(value.indexOf('#') + 1);
-                if (isNaN(bpm)) {
+                if (!isNumber(bpm)) {
                     throw new Error(`Invalid BPM value: ${value}`);
                 }
             } else {
                 rawDuration = value.substring(1);
             }
-            const secondsDuration = parseFloat(rawDuration);
-            if (isNaN(secondsDuration)) {
+            const secondsDuration = Number(rawDuration);
+            if (!isNumber(secondsDuration)) {
                 throw new Error(`Invalid seconds duration value: ${value}`);
             }
             return this.convertSecondsToGridLength(secondsDuration, measureResolution, bpm);
@@ -483,18 +483,16 @@ export default class MaidataObjectsParser {
         } else if (value.indexOf(':') !== -1) {
             if (value.indexOf(':') > 0) {
                 const splitValue = value.split(':');
-                const divisor = parseFloat(splitValue[0]);
-                const length = parseFloat(splitValue[1]);
-                if (!isNaN(divisor) && !isNaN(length)) {
+                const divisor = Number(splitValue[0]);
+                const length = Number(splitValue[1]);
+                if (isNumber(divisor) && isNumber(length)) {
                     return this.convertBracketsLengthToGridLength(divisor, length, measureResolution);
                 }
             }
             throw new Error(`Invalid length: ${value}`);
-        } else {
-            const divisor = parseInt(value);
-            if (!isNaN(divisor)) {
-                return 1 / divisor * measureResolution;
-            }
+        } else if (isNumber(value)) {
+            const divisor = Number(value);
+            return 1 / divisor * measureResolution;
         }
         throw new Error(`Unrecognized length format: ${value}`);
     }
@@ -584,11 +582,11 @@ export default class MaidataObjectsParser {
             return result;
         };
 
-        if (isNaN(Number(value)) && value.length === 2 && !isNaN(Number(value.charAt(1)))) {
+        if (!isNumber(value) && value.length === 2 && isNumber(value.charAt(1))) {
             const left = value.charAt(0);
             const right = value.charAt(1);
             return left + shift(Number(right), amount);
-        } else if (!isNaN(Number(value))) {
+        } else if (isNumber(value)) {
             return shift(Number(value), amount);
         } else {
             return value;
@@ -597,7 +595,7 @@ export default class MaidataObjectsParser {
 
     private isButtonPosition(item: string) {
         const position = Number(item);
-        return !isNaN(position) && position >= 1 && position <= 8;
+        return isNumber(position) && position >= 1 && position <= 8;
     }
 
     private isTouchPosition(item: string) {
@@ -608,120 +606,120 @@ export default class MaidataObjectsParser {
     }
 
     private isDecorator(item: string) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         const matches = item.match(/^([@$bfhx!?]{0,3})$/);
-        return matches != null && matches.length > 0;
+        return matches && matches.length > 0;
     }
 
     private isSlideNotation(item: string) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         const matches = item.match(/^([-^<>Vpqsvwz]{0,2})$/);
-        return matches != null && matches.length > 0;
+        return matches && matches.length > 0;
     }
 
     private isEndPosition(item: string) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         const matches = item.match(/^([1-8]{1,2})$/);
-        return matches != null && matches.length > 0;
+        return matches && matches.length > 0;
     }
 
     private isLength(item: string) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         const matches = item.match(/^(\[#\d+\.?\d*]|\[\d+\.?\d*(?:#{1,2})\d+\.?\d*]|\[\d+\.?\d*:\d+\.?\d*]|\[\d+\.?\d*])$/);
-        return matches != null && matches.length > 0;
+        return matches && matches.length > 0;
     }
 
     private isNormalLength(item: string) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         const matches = item.match(/^(\[\d+\.?\d*:\d+\.?\d*])$/);
-        return matches != null && matches.length > 0;
+        return matches && matches.length > 0;
     }
 
     private isBpmLength(item: string) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         const matches = item.match(/^(\[\d+\.?\d*#\d+\.?\d*])$/);
-        return matches != null && matches.length > 0;
+        return matches && matches.length > 0;
     }
 
     private isSecondsLength(item: string) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         const matches = item.match(/^(\[#\d+\.?\d*])$/);
-        return matches != null && matches.length > 0;
+        return matches && matches.length > 0;
     }
 
     private isFixedLength(item: string) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         const matches = item.match(/^(\[\d+\.?\d*##\d+\.?\d*])$/);
-        return matches != null && matches.length > 0;
+        return matches && matches.length > 0;
     }
 
     private hasBreakDecorator(item: string | string[]) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         return item.includes('b');
     }
 
     private hasHoldDecorator(item: string | string[]) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         return item.includes('h');
     }
 
     private hasFireworkDecorator(item: string | string[]) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         return item.includes('f');
     }
 
     private hasExDecorator(item: string | string[]) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         return item.includes('x');
     }
 
     private hasForceStarDecorator(item: string | string[]) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         return item.includes('$');
     }
 
     private hasForceRingDecorator(item: string | string[]) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         return item.includes('@');
     }
 
     private hasNoStarDecorator(item: string | string[]) {
-        if (item == null) {
+        if (!item) {
             return false;
         }
         return item.includes('?');
     }
 
     private hasSuddenStarDecorator(item: string | string[]) { // TODO
-        if (item == null) {
+        if (!item) {
             return false;
         }
         return item.includes('!');

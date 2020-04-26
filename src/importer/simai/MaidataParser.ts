@@ -1,3 +1,4 @@
+import isNumber from 'is-number';
 
 export default class MaidataParser {
     private items: Map<string, string>;
@@ -8,14 +9,14 @@ export default class MaidataParser {
 
     getString(key: string) {
         const value = this.items.get(key);
-        return value != null && value.length === 0 ? undefined : value;
+        return value && value.length > 0 ? value : undefined;
     }
 
     getNumber(key: string) {
         const stringValue = this.items.get(key);
-        if (stringValue != null) {
-            const numberValue = parseFloat(stringValue);
-            return isNaN(numberValue) ? undefined : numberValue;
+        if (stringValue && isNumber(stringValue)) {
+            const numberValue = Number(stringValue);
+            return numberValue;
         }
         return undefined;
     }
@@ -25,7 +26,6 @@ export default class MaidataParser {
         let rows = data.split("\n");
         rows.forEach((value: string, index: number) => rows[index] = value.trim());
         rows = rows.filter(str => str.length > 0);
-        let returnValue: string | null = null;
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             if (row.charAt(0) !== '&') {
@@ -61,6 +61,10 @@ export default class MaidataParser {
                         value += nextRow;
                     }
                 }
+            }
+
+            if (value.toLowerCase().endsWith('e')) {
+                value = value.substring(0, value.length - 1);
             }
 
             resultMap.set(key, value);

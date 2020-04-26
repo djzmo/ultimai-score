@@ -72,7 +72,7 @@ export default class MusicStatistics {
     }
 
     calculateTotals() {
-        this._totalNoteCount = this._tapCount + this._holdCount + this._starCount + this._breakStarCount +
+        this._totalNoteCount = this._tapCount + this._holdCount + this._starCount + this._breakCount + this._breakStarCount +
             this._exTapCount + this._exHoldCount + this._exStarCount + this._touchTapCount + this._touchHoldCount +
             this._slideCount;
         this._groupedTapCount = this._tapCount + this._starCount + this._exTapCount + this._exStarCount + this._touchTapCount;
@@ -80,7 +80,7 @@ export default class MusicStatistics {
         this._groupedBreakCount = this._breakCount + this._breakStarCount;
         this._groupedSlideCount = this._slideCount;
         this._judgeTapCount = this._groupedTapCount + this._groupedBreakCount;
-        this._judgeHoldCount = this._groupedHoldCount;
+        this._judgeHoldCount = this._groupedHoldCount; // TODO: judge hold count does not match actual data. probably something is missing here
         this._judgeSlideCount = this._groupedSlideCount;
         this._judgeTotalNoteCount = this._judgeTapCount + this._judgeHoldCount + this._judgeSlideCount;
         this._maxTapScore = this._groupedTapCount * MusicStatistics.TAP_SCORE;
@@ -88,7 +88,9 @@ export default class MusicStatistics {
         this._maxSlideScore = this._groupedSlideCount * MusicStatistics.SLIDE_SCORE;
         this._maxBreakScore = this._groupedBreakCount * MusicStatistics.BREAK_SCORE;
         this._maxTotalScore = this._maxTapScore + this._maxHoldScore + this._maxSlideScore + this._maxBreakScore;
-        this._maxTotalAchievement = this._maxTotalScore / (this._maxTotalScore - this._groupedBreakCount * 100);
+        this._scoreBorderSS = this._maxTotalScore - this._groupedBreakCount * 100;
+        this._scoreBorderS = Math.ceil(this._scoreBorderSS * 0.97 / 10) * 10;
+        this._maxTotalAchievement = this._maxTotalScore / this._scoreBorderSS * 100;
     }
 
     increment(type: NoteType): void {

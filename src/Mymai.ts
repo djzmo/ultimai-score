@@ -26,38 +26,50 @@ export default class Mymai {
 
     async handle(args: string[]) {
         const options: MymaiCommandLineOptions = commandLineArgs(this.getOptionDefinitions());
-        if (args.length === 0 || options.help || options.files == null || options.files.length == 0) {
+        if (args.length === 0 || options.help || !options.files || options.files.length == 0) {
             this.showHelp();
         } else {
             if (!this.isInitialized) {
-                this.initConsumers();
-                this.initProducers();
+                this.initImporters();
+                this.initExporters();
                 this.isInitialized = true;
             }
 
-            const sourceFormat = options.sourceFormat != null ? SourceFormat[options.sourceFormat] : SourceFormat.SIMAI;
-            const targetFormat = options.targetFormat != null ? TargetFormat[options.targetFormat] : TargetFormat.MA2;
+            const sourceFormat = options.sourceFormat ? SourceFormat[options.sourceFormat] : SourceFormat.SIMAI;
+            const targetFormat = options.targetFormat ? TargetFormat[options.targetFormat] : TargetFormat.MA2;
+            const outDir = options.outDir ? options.outDir : 'output';
             for (const path of options.files) {
                 console.log(`Importing source: [${sourceFormat}] ${path}...`);
-                const consumer = this._importers.get(sourceFormat);
-                if (consumer != null) {
-                    const musicData = await consumer.import(path);
-                    if (musicData != null) {
-                        console.log(`Exporting target: [${targetFormat}] ${path}...`);
+                const importer = this._importers.get(sourceFormat);
+                const exporter = this._exporters.get(targetFormat);
+                if (importer && exporter) {
+                    const musicData = await importer.import(path);
+                    if (musicData) {
+                        console.log(`Exporting to target: [${targetFormat}] ${path}...`);
+                        const exportedFiles = await exporter.export(musicData, outDir);
+                        if (exportedFiles && exportedFiles.length > 0) {
+                            console.log(`Export successful. These files were created in outDir: ${exportedFiles.join(', ')}`);
+                        } else {
+                            console.log(`Export failed. No files were created.`);
+                        }
                     }
                 } else {
-                    console.log(`No suitable importer was found for '${path}' (${sourceFormat})`);
+                    if (!importer) {
+                        console.log(`No suitable importer was found for '${path}' (${sourceFormat})`);
+                    } else {
+                        console.log(`No suitable exporter was found for '${path}' (${targetFormat})`);
+                    }
                 }
             }
         }
     }
 
-    private initConsumers() {
+    private initImporters() {
         this._importers.set(SourceFormat.SIMAI, new SimaiImporter);
         this._importers.set(SourceFormat.MA2, new Ma2Importer);
     }
 
-    private initProducers() {
+    private initExporters() {
         this._exporters.set(TargetFormat.SIMAI, new SimaiExporter);
         this._exporters.set(TargetFormat.MA2, new Ma2Exporter);
     }
