@@ -7,7 +7,7 @@ export default interface MusicNotesData {
     level: number;
     designer?: string;
     filePath?: string;
-    gridsPerMeasure: number;
+    measureResolution: number;
     noteObjects: Note[];
     bpmObjects: Bpm[];
     timeSignatureObjects: TimeSignature[];

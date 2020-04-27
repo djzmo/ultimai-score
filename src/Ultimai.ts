@@ -1,7 +1,7 @@
 import commandLineArgs from "command-line-args";
 import SourceFormat from "./data/cli/SourceFormat";
 import TargetFormat from "./data/cli/TargetFormat";
-import MymaiCommandLineOptions from "./data/cli/MymaiCommandLineOptions";
+import UltimaiCommandLineOptions from "./data/cli/UltimaiCommandLineOptions";
 import Importer from "./importer/Importer";
 import Exporter from "./exporter/Exporter";
 import SimaiImporter from "./importer/SimaiImporter";
@@ -9,7 +9,7 @@ import Ma2Importer from "./importer/Ma2Importer";
 import SimaiExporter from "./exporter/SimaiExporter";
 import Ma2Exporter from "./exporter/Ma2Exporter";
 
-export default class Mymai {
+export default class Ultimai {
     public static NAME = 'mymai';
     public static VERSION = '1.0.0';
     private isInitialized: boolean = false;
@@ -25,7 +25,7 @@ export default class Mymai {
     }
 
     async handle(args: string[]) {
-        const options: MymaiCommandLineOptions = commandLineArgs(this.getOptionDefinitions());
+        const options: UltimaiCommandLineOptions = commandLineArgs(this.getOptionDefinitions());
         if (args.length === 0 || options.help || !options.files || options.files.length == 0) {
             this.showHelp();
         } else {
@@ -35,23 +35,32 @@ export default class Mymai {
                 this.isInitialized = true;
             }
 
-            const sourceFormat = options.sourceFormat ? SourceFormat[options.sourceFormat] : SourceFormat.SIMAI;
-            const targetFormat = options.targetFormat ? TargetFormat[options.targetFormat] : TargetFormat.MA2;
+            const sourceFormat = options.sourceFormat ? <SourceFormat>options.sourceFormat : SourceFormat.SIMAI;
+            const targetFormat = options.targetFormat ? <TargetFormat>options.targetFormat : TargetFormat.MA2;
             const outDir = options.outDir ? options.outDir : 'output';
             for (const path of options.files) {
                 console.log(`Importing source: [${sourceFormat}] ${path}...`);
                 const importer = this._importers.get(sourceFormat);
                 const exporter = this._exporters.get(targetFormat);
                 if (importer && exporter) {
-                    const musicData = await importer.import(path);
-                    if (musicData) {
-                        console.log(`Exporting to target: [${targetFormat}] ${path}...`);
-                        const exportedFiles = await exporter.export(musicData, outDir);
-                        if (exportedFiles && exportedFiles.length > 0) {
-                            console.log(`Export successful. These files were created in outDir: ${exportedFiles.join(', ')}`);
-                        } else {
-                            console.log(`Export failed. No files were created.`);
+                    try {
+                        if (await importer.analyze(path)) {
+                            const musicData = await importer.import(path);
+                            if (musicData) {
+                                console.log(`Exporting to target: [${targetFormat}] ${path}...`);
+                                const exportedFiles = await exporter.export(musicData, outDir);
+                                if (exportedFiles && exportedFiles.length > 0) {
+                                    console.log(`Export successful. These files were created in the output directory:`);
+                                    for (const file of exportedFiles) {
+                                        console.log(`- ${file}`);
+                                    }
+                                } else {
+                                    console.log(`Export failed. No files were created.`);
+                                }
+                            }
                         }
+                    } catch (e) {
+                        console.log(e.message);
                     }
                 } else {
                     if (!importer) {
@@ -85,11 +94,11 @@ export default class Mymai {
     }
 
     private showHelp() {
-        console.log(`Version ${Mymai.VERSION}`);
-        console.log(`Usage:    ${Mymai.NAME} [options] [file...]\n`);
+        console.log(`Version ${Ultimai.VERSION}`);
+        console.log(`Usage:    ${Ultimai.NAME} [options] [file...]\n`);
 
-        console.log(`Examples: ${Mymai.NAME} tutorial/maidata.txt`);
-        console.log(`          ${Mymai.NAME} --outDir ~/converted 0019_acceleration/maidata.txt 0021_fragrance/maidata.txt\n`);
+        console.log(`Examples: ${Ultimai.NAME} tutorial/maidata.txt`);
+        console.log(`          ${Ultimai.NAME} --outDir ~/library 0019_acceleration/maidata.txt 0021_fragrance/maidata.txt\n`);
 
         console.log(`Options:`);
         console.log(` -h, --help             Print this message.`);

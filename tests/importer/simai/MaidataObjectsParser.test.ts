@@ -1,4 +1,4 @@
-import MaidataObjectsParser from "../../../src/importer/simai/MaidataObjectsParser";
+import ObjectsParser from "../../../src/importer/simai/MaidataObjectsParser";
 import TouchArea from "../../../src/data/music/object/TouchArea";
 import NoteType from "../../../src/data/music/object/NoteType";
 import HoldNote from "../../../src/data/music/object/HoldNote";
@@ -8,7 +8,7 @@ import SlideType from "../../../src/data/music/object/SlideType";
 const MEASURE_RESOLUTION = 384;
 const DEFAULT_BPM = 120;
 const parser = (data, measureResolution = MEASURE_RESOLUTION, defaultBpm = DEFAULT_BPM) => {
-    const o = new MaidataObjectsParser;
+    const o = new ObjectsParser;
     o.parse(data, measureResolution, defaultBpm);
     return o;
 };
@@ -756,22 +756,22 @@ describe('maidata objects parser', () => {
     });
 
     it('should throw error when encountering invalid object', () => {
-        const parser = new MaidataObjectsParser;
+        const parser = new ObjectsParser;
         expect(() => parser.parse('{1}X,', MEASURE_RESOLUTION, DEFAULT_BPM)).toThrowError('Unable to parse object: X');
     });
 
     it('should throw error when encountering invalid divisor', () => {
-        const parser = new MaidataObjectsParser;
+        const parser = new ObjectsParser;
         expect(() => parser.parse('{X}1,', MEASURE_RESOLUTION, DEFAULT_BPM)).toThrowError('Unrecognized length format: X');
     });
 
     it('should throw error when encountering invalid BPM', () => {
-        const parser = new MaidataObjectsParser;
+        const parser = new ObjectsParser;
         expect(() => parser.parse('(X){4}1,', MEASURE_RESOLUTION, DEFAULT_BPM)).toThrowError('Invalid BPM value: X');
     });
 
     it('should throw error when encountering invalid BPM', () => {
-        const parser = new MaidataObjectsParser;
+        const parser = new ObjectsParser;
         expect(() => parser.parse('(X){4}1,', MEASURE_RESOLUTION, DEFAULT_BPM)).toThrowError('Invalid BPM value: X');
     });
 });

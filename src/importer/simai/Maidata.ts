@@ -1,6 +1,6 @@
 import isNumber from 'is-number';
 
-export default class MaidataParser {
+export default class Maidata {
     private items: Map<string, string>;
 
     constructor(data) {

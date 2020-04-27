@@ -1,12 +1,12 @@
 import {promises as fsPromises} from "fs";
-import MaidataParser from "../../../src/importer/simai/MaidataParser";
+import Maidata from "../../../src/importer/simai/MaidataParser";
 
 const {readFile} = fsPromises;
 
 describe('maidata parser', () => {
     it('should return correct items', async () => {
         const data = await readFile('tests/resources/maidata.txt', {encoding: 'utf8'});
-        const parser = new MaidataParser(data);
+        const parser = new Maidata(data);
         expect(parser.getString('title')).toBe('ここに曲名を書く');
         expect(parser.getString('artist')).toBe('ここにアーティスト名を書く');
         expect(parser.getString('des')).toBe('全難易度共通 ノーツデザイナー名義を書く');

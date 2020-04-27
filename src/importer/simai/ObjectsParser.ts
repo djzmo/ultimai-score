@@ -7,40 +7,23 @@ import NoteType from "../../data/music/object/NoteType";
 import HoldNote from "../../data/music/object/HoldNote";
 import TimeSignature from "../../data/music/object/TimeSignature";
 import MusicStatistics from "../../data/music/MusicStatistics";
+import {calculateDistance, isButtonPosition, isTouchPosition, shiftPosition} from "../../util/NoteUtil";
 
-export default class MaidataObjectsParser {
-    private _noteObjects: Note[];
-    private _bpmObjects: Bpm[];
-    private _timeSignatureObjects: TimeSignature[];
-    private _statistics?: MusicStatistics;
+type SimaiMaidataObjectsParseResult = {
+    noteObjects: Note[],
+    bpmObjects: Bpm[],
+    timeSignatureObjects: TimeSignature[],
+    statistics: MusicStatistics
+};
 
-    constructor() {
-        this._noteObjects = [];
-        this._bpmObjects = [];
-        this._timeSignatureObjects = [];
-    }
+export default class ObjectsParser {
+    private static PSEUDO_EACH_LENGTH = 4;
 
-    get noteObjects() {
-        return this._noteObjects;
-    }
-
-    get bpmObjects() {
-        return this._bpmObjects;
-    }
-
-    get timeSignatureObjects() {
-        return this._timeSignatureObjects;
-    }
-    
-    get statistics() {
-        return this._statistics;
-    }
-
-    parse(data: string, measureResolution: number, defaultBpm: number, defaultDivisor: number = 4) {
-        this._noteObjects = [];
-        this._bpmObjects = [];
-        this._timeSignatureObjects = [{divisor: 4, beatLength: 4, grid: 0, measure: 0}];
-        this._statistics = new MusicStatistics;
+    async parse(data: string, measureResolution: number, defaultBpm: number, defaultDivisor: number = 4) : Promise<SimaiMaidataObjectsParseResult> {
+        const noteObjects: Note[] = [];
+        const bpmObjects: Bpm[] = [];
+        const timeSignatureObjects: TimeSignature[] = [{divisor: 4, beatLength: 4, grid: 0, measure: 0}];
+        const statistics: MusicStatistics = new MusicStatistics;
 
         let items = data.split(',');
         items.forEach((value: string, index: number) => items[index] = value.trim());
@@ -52,7 +35,7 @@ export default class MaidataObjectsParser {
             if (newBpm) {
                 item = this.trimBpm(item);
                 bpm = newBpm;
-                this._bpmObjects.push({bpm, measure: currentMeasure, grid: currentGrid});
+                bpmObjects.push({bpm, measure: currentMeasure, grid: currentGrid});
             }
 
             const divisor = this.parseDivisor(item, measureResolution, bpm);
@@ -64,9 +47,9 @@ export default class MaidataObjectsParser {
                 item = this.trimDivisor(item);
             }
 
-            const noteObjects = this.parseEach(item, currentMeasure, currentGrid, measureResolution, bpm);
+            const noteObjects = this.parseEach(item, currentMeasure, currentGrid, measureResolution, bpm, statistics);
             if (noteObjects && noteObjects.length > 0) {
-                this._noteObjects.push(...noteObjects);
+                noteObjects.push(...noteObjects);
             }
 
             currentGrid += restLength;
@@ -76,8 +59,8 @@ export default class MaidataObjectsParser {
             }
         }
 
-        this._statistics?.calculateTotals();
-        return this._noteObjects;
+        statistics?.calculateTotals();
+        return {noteObjects, bpmObjects, timeSignatureObjects, statistics};
     }
 
     // [<length>] -> <length>
@@ -127,14 +110,15 @@ export default class MaidataObjectsParser {
                       measure: number,
                       grid: number,
                       measureResolution: number,
-                      bpm: number): Note[] {
+                      bpm: number,
+                      statistics: MusicStatistics): Note[] {
         let eachNotes: Note[] = [];
         // 12345678
         if (item.length >= 2 && item.length <= 8 && isNumber(item)) {
             const matches = item.match(/([1-8])/g);
             if (matches && matches.length > 0) {
                 for (const match of matches) {
-                    const producedNotes = this.parseSingle(match, measure, grid, measureResolution, bpm);
+                    const producedNotes = this.parseSingle(match, measure, grid, measureResolution, bpm, statistics);
                     if (producedNotes) {
                         eachNotes.push(...producedNotes);
                     }
@@ -171,6 +155,7 @@ export default class MaidataObjectsParser {
                         grid,
                         measureResolution,
                         bpm,
+                        statistics,
                         isPseudo ? ++pseudoIndex : 0);
                     if (producedNotes && producedNotes.length > 0) {
                         eachNotes.push(...producedNotes);
@@ -187,13 +172,18 @@ export default class MaidataObjectsParser {
                           grid: number,
                           measureResolution: number,
                           bpm: number,
+                          statistics: MusicStatistics,
                           pseudoIndex: number = 0): Note[] {
         const matches = item.match(/(?:\*)?([a-zA-Z0-9\[\]:.^<>?!\-@$#`]+)/g);
         const notes: Note[] = [];
         if (matches && matches.length > 0) {
-            const isTouchPosition = this.isTouchPosition(matches[0]);
-            if (isTouchPosition) {
-                const producedNotes = this.parseSingle(matches[0], measure, grid + pseudoIndex, measureResolution, bpm);
+            if (isTouchPosition(matches[0])) {
+                const producedNotes = this.parseSingle(matches[0],
+                    measure,
+                    grid + pseudoIndex * ObjectsParser.PSEUDO_EACH_LENGTH,
+                    measureResolution,
+                    bpm,
+                    statistics);
                 notes.push(...producedNotes);
             } else {
                 let startPosition = matches[0].charAt(0);
@@ -201,9 +191,10 @@ export default class MaidataObjectsParser {
                     const isHeadless = match.charAt(0) === '*'; // 1-4[4:1]*-7[4:1]*-2[4:1]
                     const producedNotes = this.parseSingle(isHeadless ? startPosition.toString() + match.substring(1) : match,
                         measure,
-                        grid + pseudoIndex,
+                        grid + pseudoIndex * ObjectsParser.PSEUDO_EACH_LENGTH,
                         measureResolution,
                         bpm,
+                        statistics,
                         isHeadless);
                     if (producedNotes && producedNotes.length > 0) {
                         notes.push(...producedNotes);
@@ -219,6 +210,7 @@ export default class MaidataObjectsParser {
                         grid: number,
                         measureResolution: number,
                         bpm: number,
+                        statistics: MusicStatistics,
                         isHeadless?: boolean): Note[] {
         const matches = item.match(/^([1-8]|[ABDE][1-8]|C)([@$bfhx!?]{0,3})?([-^<>Vpqsvwz]{0,2})?([1-8]{1,2})?(\[#\d+\.?\d*]|\[\d+\.?\d*(?:#{1,2})\d+\.?\d*]|\[\d+\.?\d*:\d+\.?\d*]|\[\d+\.?\d*])?/);
         if (matches && matches.length > 0) {
@@ -251,7 +243,7 @@ export default class MaidataObjectsParser {
             }
 
             // Validations
-            if (!this.isButtonPosition(startPosition) && !this.isTouchPosition(startPosition)) {
+            if (!isButtonPosition(startPosition) && !isTouchPosition(startPosition)) {
                 throw new Error(`Invalid start position: ${item}`);
             }
             if (slideNotation && !endPosition) {
@@ -266,10 +258,10 @@ export default class MaidataObjectsParser {
             if (slideNotation && endPosition && !length) {
                 throw new Error(`Missing length for slide: ${item}`);
             }
-            if (slideNotation && endPosition && this.isTouchPosition(endPosition)) {
+            if (slideNotation && endPosition && isTouchPosition(endPosition)) {
                 throw new Error(`Illegal end position for slide: ${item}`);
             }
-            if (slideNotation && this.isTouchPosition(startPosition)) {
+            if (slideNotation && isTouchPosition(startPosition)) {
                 throw new Error(`Illegal start position for slide: ${item}`);
             }
             if (slideNotation) {
@@ -279,9 +271,9 @@ export default class MaidataObjectsParser {
                     if (nStartPosition === nEndPosition && (slideNotation === '-' || slideNotation === '^' || slideNotation === 'v' ||
                         slideNotation === 'V' || slideNotation === 's' || slideNotation === 'z' || slideNotation === 'w')) {
                         throw new Error(`Illegal end position for slide type: ${item}`);
-                    } else if (slideNotation === '^' && Math.abs(this.calculateDistance(nStartPosition, nEndPosition)) === 4) {
+                    } else if (slideNotation === '^' && Math.abs(calculateDistance(nStartPosition, nEndPosition)) === 4) {
                         throw new Error(`Illegal start-end distance for '^' slide: ${item}`);
-                    } else if ('wsz'.includes(slideNotation) && Math.abs(this.calculateDistance(nStartPosition, nEndPosition)) !== 4) {
+                    } else if ('wsz'.includes(slideNotation) && Math.abs(calculateDistance(nStartPosition, nEndPosition)) !== 4) {
                         throw new Error(`Illegal start-end distance for 's'/'w'/'z' slide: ${item}`);
                     }
                 }
@@ -293,7 +285,7 @@ export default class MaidataObjectsParser {
                     throw new Error(`Illegal break decorator for hold: ${item}`);
                 } else if (this.hasForceRingDecorator(decorators) || this.hasForceStarDecorator(decorators)) {
                     throw new Error(`Illegal force decorator for hold: ${item}`);
-                } else if (!this.isButtonPosition(startPosition) && startPosition !== 'C') {
+                } else if (!isButtonPosition(startPosition) && startPosition !== 'C') {
                     throw new Error(`Illegal start position for hold: ${item}`);
                 } else if (length && length.indexOf('#') !== -1) {
                     throw new Error(`Illegal hash length for hold: ${item}`);
@@ -315,7 +307,7 @@ export default class MaidataObjectsParser {
             if (this.hasBreakDecorator(decorators)) {
                 if (this.hasExDecorator(decorators)) {
                     throw new Error(`EX decorator cannot be used at the same time with break decorator: ${item}`);
-                } else if (this.isTouchPosition(decorators)) {
+                } else if (isTouchPosition(decorators)) {
                     throw new Error(`Invalid start position for break decorator: ${item}`);
                 } else if (this.hasNoStarDecorator(decorators) || this.hasSuddenStarDecorator(decorators)) {
                     throw new Error(`Star decorator cannot be used at the same time with break decorator: ${item}`);
@@ -327,8 +319,8 @@ export default class MaidataObjectsParser {
                 } else {
                     const refractPosition = endPosition.charAt(0);
                     const nStartPosition = Number(startPosition);
-                    if (this.shiftPosition(refractPosition, 2, -1) !== nStartPosition &&
-                        this.shiftPosition(refractPosition, 2, 1) !== nStartPosition) {
+                    if (shiftPosition(refractPosition, 2, -1) !== nStartPosition &&
+                        shiftPosition(refractPosition, 2, 1) !== nStartPosition) {
                         throw new Error(`Refract position for refractive slide must only be two steps away: ${item}`);
                     }
                 }
@@ -353,12 +345,12 @@ export default class MaidataObjectsParser {
                 let slideType = this.toSlideType(slideNotation);
                 if (slideNotation === 'V') {
                     const refractPosition = endPosition?.charAt(0);
-                    slideType = this.shiftPosition(startPosition, 2, -1) === Number(refractPosition) ? SlideType.REFRACTIVE_L : SlideType.REFRACTIVE_R;
+                    slideType = shiftPosition(startPosition, 2, -1) === Number(refractPosition) ? SlideType.REFRACTIVE_L : SlideType.REFRACTIVE_R;
                     endPosition = endPosition?.charAt(1);
                 } else if (slideNotation === '^') {
                     const nEndPosition = Number(endPosition);
-                    const distance = this.calculateDistance(nStartPosition, nEndPosition);
-                    slideType = this.shiftPosition(startPosition, distance, -1) === nEndPosition ? SlideType.CURVE_L : SlideType.CURVE_R;
+                    const distance = calculateDistance(nStartPosition, nEndPosition);
+                    slideType = shiftPosition(startPosition, distance, -1) === nEndPosition ? SlideType.CURVE_L : SlideType.CURVE_R;
                 }
 
                 const notes: Note[] = [];
@@ -374,7 +366,7 @@ export default class MaidataObjectsParser {
                         area: TouchArea.A,
                         type: this.hasForceRingDecorator(decorators) ? ringType : starType
                     };
-                    this._statistics?.increment(starNote.type);
+                    statistics.increment(starNote.type);
                     notes.push(starNote);
                 }
 
@@ -390,20 +382,20 @@ export default class MaidataObjectsParser {
                     travelDuration
                 };
 
-                this._statistics?.increment(slideNote.type);
+                statistics.increment(slideNote.type);
                 notes.push(<Note>slideNote);
                 return notes;
             } else if (this.hasHoldDecorator(decorators)) {
-                const position = this.isButtonPosition(startPosition) ? Number(startPosition) :
+                const position = isButtonPosition(startPosition) ? Number(startPosition) :
                     startPosition === 'C' ? undefined : Number(startPosition.charAt(1));
                 const area = this.toTouchArea(startPosition);
-                const firework = startPosition === 'C' && this.hasFireworkDecorator(decorators);
+                const firework = this.hasFireworkDecorator(decorators);
                 const note: HoldNote = {
                     grid,
                     measure,
                     position,
                     area,
-                    firework,
+                    firework: startPosition === 'C' ? firework : undefined,
                     type: startPosition === 'C' ? NoteType.TOUCH_HOLD :
                         (this.hasExDecorator(decorators) ? NoteType.EX_HOLD : NoteType.HOLD)
                 };
@@ -416,27 +408,27 @@ export default class MaidataObjectsParser {
                         throw new Error(`Unable to parse hold length: ${length}`);
                     }
                 }
-                this._statistics?.increment(note.type);
+                statistics.increment(note.type);
                 return [<Note>note];
             } else {
-                const position = this.isButtonPosition(startPosition) ? Number(startPosition) :
+                const position = isButtonPosition(startPosition) ? Number(startPosition) :
                     startPosition === 'C' ? undefined : Number(startPosition.charAt(1));
                 const area = this.toTouchArea(startPosition);
                 const starType = (this.hasBreakDecorator(decorators) ? NoteType.BREAK_STAR :
                     (this.hasExDecorator(decorators) ? NoteType.EX_STAR : NoteType.STAR));
                 const ringType = (this.hasBreakDecorator(decorators) ? NoteType.BREAK :
                     (this.hasExDecorator(decorators) ? NoteType.EX_TAP : NoteType.TAP));
-                const firework = startPosition === 'C' && this.hasFireworkDecorator(decorators);
+                const firework = this.hasFireworkDecorator(decorators);
                 const note: Note = {
                     grid,
                     measure,
                     position,
                     area,
-                    firework,
-                    type: this.isTouchPosition(startPosition) ? NoteType.TOUCH_TAP :
+                    firework: startPosition === 'C' ? firework : undefined,
+                    type: isTouchPosition(startPosition) ? NoteType.TOUCH_TAP :
                         this.hasForceStarDecorator(decorators) ? starType : ringType
                 };
-                this._statistics?.increment(note.type);
+                statistics.increment(note.type);
                 return [note];
             }
         }
@@ -459,7 +451,7 @@ export default class MaidataObjectsParser {
         return undefined;
     }
 
-    // (<divisor> | <divisor>:<length> | #<ravelDuration> | <bpm>#<travelDuration>) -> <restLength>
+    // (<divisor> | <divisor>:<length> | #<travelDuration> | <bpm>#<travelDuration>) -> <restLength>
     private toGridLength(value: string, measureResolution: number, defaultBpm: number) {
         let bpm = defaultBpm;
         // #<travelDuration> | <bpm>#<travelDuration>
@@ -531,7 +523,7 @@ export default class MaidataObjectsParser {
     }
 
     private toTouchArea(value: string) {
-        if (this.isButtonPosition(value)) {
+        if (isButtonPosition(value)) {
             return TouchArea.A;
         } else if (value.charAt(0) === 'B') {
             return TouchArea.B;
@@ -559,50 +551,6 @@ export default class MaidataObjectsParser {
 
     private convertBracketsLengthToGridLength(divisor: number, length: number, measureResolution: number) {
         return length / divisor * measureResolution;
-    }
-
-    calculateDistance(a: number, b: number) {
-        if (a === b) {
-            return 0;
-        }
-        const low = a < b ? a : b;
-        const high = a > b ? a : b;
-        const shortest = Math.min(high - low, low + 8 - high);
-        return Math.abs(shortest);
-    }
-
-    private shiftPosition(value: string, amount: number, direction: -1 | 1 = 1) {
-        const shift = (n, m) => {
-            const result = direction > 0 ? n + m : n - m;
-            if (result > 8) {
-                return result % 8;
-            } else if (result < 1) {
-                return result + 8;
-            }
-            return result;
-        };
-
-        if (!isNumber(value) && value.length === 2 && isNumber(value.charAt(1))) {
-            const left = value.charAt(0);
-            const right = value.charAt(1);
-            return left + shift(Number(right), amount);
-        } else if (isNumber(value)) {
-            return shift(Number(value), amount);
-        } else {
-            return value;
-        }
-    }
-
-    private isButtonPosition(item: string) {
-        const position = Number(item);
-        return isNumber(position) && position >= 1 && position <= 8;
-    }
-
-    private isTouchPosition(item: string) {
-        const left = item.charAt(0);
-        const right = item.length > 1 ? item.charAt(1) : '';
-        return (right.length === 0 && left === 'C') ||
-            ('ABDE'.includes(left) && this.isButtonPosition(right));
     }
 
     private isDecorator(item: string) {
