@@ -6,8 +6,7 @@
   "types": "dist/cli.d.ts",
   "scripts": {
     "test": "jest",
-    "prepublish": "tsc",
-    "build": "tsc && pkg . --out-path ./bin"
+    "prepublish": "tsc"
   },
   "keywords": [],
   "author": "",

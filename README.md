@@ -24,6 +24,23 @@ Options:
  -t, --targetFormat     Specify the target data format: 'ma2' (default), 'simai'
 ```
 
+#### Build Instructions
+
+``` sh
+$ git clone git@github.com:djzmo/ultimai
+$ cd ultimai
+$ npm i -g tsc pkg
+$ npm i
+$ tsc
+$ pkg . --out-path ./bin
+```
+
+#### Run Tests
+
+``` sh
+$ npm run test
+```
+
 ## Downloads
 
 See [Releases](https://github.com/djzmo/ultimai/releases) page.
