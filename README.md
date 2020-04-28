@@ -5,7 +5,7 @@ ultimai is a score format converter tool for that washing machine game simulator
 It currently supports two-way format conversion between:
 
 - simai - [3simai specification](https://w.atwiki.jp/simai/pages/25.html)
-- Ma2
+- ma2
 
 ## Usage
 
@@ -47,7 +47,7 @@ See [Releases](https://github.com/djzmo/ultimai/releases) page.
 
 ## Known Limitations
 
-The tool is not able to convert complementary assets yet such as jackets, sounds, and movies.
+This tool is not able to convert complementary assets yet such as jackets, sounds, and movies.
 
 ## License
 
