@@ -10,7 +10,7 @@ import SimaiExporter from "./exporter/SimaiExporter";
 import Ma2Exporter from "./exporter/Ma2Exporter";
 
 export default class Ultimai {
-    public static NAME = 'mymai';
+    public static NAME = 'ultimai';
     public static VERSION = '1.0.0';
     private isInitialized: boolean = false;
     private _importers: Map<SourceFormat, Importer> = new Map<SourceFormat, Importer>();
@@ -69,6 +69,8 @@ export default class Ultimai {
                         console.log(`No suitable exporter was found for '${path}' (${targetFormat})`);
                     }
                 }
+
+                console.log();
             }
         }
     }
@@ -99,6 +101,7 @@ export default class Ultimai {
 
         console.log(`Examples: ${Ultimai.NAME} tutorial/maidata.txt`);
         console.log(`          ${Ultimai.NAME} --outDir ~/library 0019_acceleration/maidata.txt 0021_fragrance/maidata.txt\n`);
+        console.log(`          ${Ultimai.NAME} -s ma2 -t simai 123456/Music.xml\n`);
 
         console.log(`Options:`);
         console.log(` -h, --help             Print this message.`);

@@ -17,6 +17,7 @@
     "is-number": "^7.0.0",
     "mkdirp": "^1.0.4",
     "randomatic": "^3.1.1",
+    "slugify": "^1.4.0",
     "ts-node": "^8.9.0",
     "typescript": "^3.8.3",
     "xml2js": "^0.4.23",

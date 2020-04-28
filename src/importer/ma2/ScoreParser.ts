@@ -1,12 +1,12 @@
-import isNumber from 'is-number';
-import Note from '../../data/music/object/Note';
-import Bpm from '../../data/music/object/Bpm';
-import TimeSignature from '../../data/music/object/TimeSignature';
-import MusicStatistics from '../../data/music/MusicStatistics';
-import NoteType from '../../data/music/object/NoteType';
-import TouchArea from '../../data/music/object/TouchArea';
-import SlideNote from '../../data/music/object/SlideNote';
-import HoldNote from '../../data/music/object/HoldNote';
+import isNumber from "is-number";
+import Note from "../../data/music/object/Note";
+import Bpm from "../../data/music/object/Bpm";
+import TimeSignature from "../../data/music/object/TimeSignature";
+import MusicStatistics from "../../data/music/MusicStatistics";
+import NoteType from "../../data/music/object/NoteType";
+import TouchArea from "../../data/music/object/TouchArea";
+import SlideNote from "../../data/music/object/SlideNote";
+import HoldNote from "../../data/music/object/HoldNote";
 import SlideType from "../../data/music/object/SlideType";
 
 type Ma2ScoreParseResult = {
@@ -108,7 +108,7 @@ export default class ScoreParser {
                             slideType,
                             waitDuration,
                             travelDuration,
-                            endPosition
+                            endPosition: endPosition + 1
                         };
 
                         noteObjects.push(<Note>note);

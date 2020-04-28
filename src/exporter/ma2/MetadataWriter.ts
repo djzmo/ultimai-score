@@ -1,5 +1,5 @@
-import MusicData from "../../data/music/MusicData";
 import {create} from "xmlbuilder2";
+import MusicData from "../../data/music/MusicData";
 import MusicNotesDifficulty from "../../data/music/MusicNotesDifficulty";
 
 export default class MetadataWriter {

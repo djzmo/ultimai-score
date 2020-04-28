@@ -1,4 +1,4 @@
-import isNumber from 'is-number';
+import isNumber from "is-number";
 import Note from "../../data/music/object/Note";
 import Bpm from "../../data/music/object/Bpm";
 import SlideType from "../../data/music/object/SlideType";
@@ -38,7 +38,7 @@ export default class ObjectsParser {
                 bpmObjects.push({bpm, measure: currentMeasure, grid: currentGrid});
             }
 
-            const divisor = this.parseDivisor(item, measureResolution, bpm);
+            const divisor = this.parseDivisor(item);
             if (divisor) {
                 const newRestLength = this.toGridLength(divisor, measureResolution, bpm);
                 if (isNumber(newRestLength)) {
@@ -47,9 +47,9 @@ export default class ObjectsParser {
                 item = this.trimDivisor(item);
             }
 
-            const noteObjects = this.parseEach(item, currentMeasure, currentGrid, measureResolution, bpm, statistics);
-            if (noteObjects && noteObjects.length > 0) {
-                noteObjects.push(...noteObjects);
+            const objects = this.parseEach(item, currentMeasure, currentGrid, measureResolution, bpm, statistics);
+            if (objects && objects.length > 0) {
+                noteObjects.push(...objects);
             }
 
             currentGrid += restLength;
@@ -73,7 +73,7 @@ export default class ObjectsParser {
     }
 
     // {<divisor>} -> <divisor>
-    private parseDivisor(item: string, measureResolution: number, bpm: number): string | undefined {
+    private parseDivisor(item: string): string | undefined {
         const matches = item.match(/{(.*?)}/);
         if (matches && matches.length > 0) {
             return matches[1];

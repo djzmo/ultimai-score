@@ -1,3 +1,4 @@
+import isNumber from "is-number";
 import MusicData from "../../data/music/MusicData";
 import Note from "../../data/music/object/Note";
 import Bpm from "../../data/music/object/Bpm";
@@ -21,15 +22,22 @@ export default class MaidataWriter {
         this._output = this.build(data);
     }
 
+    get output(): string {
+        return this._output;
+    }
+
     private build(data: MusicData) {
-        let output = this.renderMetadata(data) + this.renderScores(data);
-        return output;
+        return this.renderMetadata(data) + this.renderScores(data);
     }
 
     private renderMetadata(data: MusicData): string {
         const rows: string[] = [];
-        rows.push(this.createEntry('title', data.title));
-        rows.push(this.createEntry('artist', data.artist));
+        if (data.title) {
+            rows.push(this.createEntry('title', data.title));
+        }
+        if (data.artist) {
+            rows.push(this.createEntry('artist', data.artist));
+        }
 
         const designers = new Map<number, string>();
         const levels = new Map<number, string>();
@@ -43,24 +51,38 @@ export default class MaidataWriter {
                 }
                 if (level) {
                     const levelDecimal = level % 1;
-                    levels.set(difficulty, levelDecimal > 0 ? level.toString() + '+' : level.toString());
+                    levels.set(difficulty, levelDecimal > 0 ? `${Math.floor(level)}+` : level.toString());
                 }
             }
         }
 
         rows.push('');
 
+        let hasDesigner = false;
         for (const difficulty of Array.from(designers.keys())) {
-            rows.push(this.createEntry(`des_${difficulty}`, designers.get(difficulty)));
+            const designer = designers.get(difficulty);
+            if (designer) {
+                rows.push(this.createEntry(`des_${difficulty}`, designer));
+                hasDesigner = true;
+            }
         }
 
-        rows.push('');
+        if (hasDesigner) {
+            rows.push('');
+        }
 
+        let hasLevel = false;
         for (const difficulty of Array.from(levels.keys())) {
-            rows.push(this.createEntry(`lv_${difficulty}`, levels.get(difficulty)));
+            const level = levels.get(difficulty);
+            if (level) {
+                rows.push(this.createEntry(`lv_${difficulty}`, level));
+                hasLevel = true;
+            }
         }
 
-        rows.push('');
+        if (hasLevel) {
+            rows.push('');
+        }
 
         return rows.join('\r\n');
     }
@@ -79,6 +101,7 @@ export default class MaidataWriter {
                 }
                 const objects = this.renderObjects(noteObjects, bpmObjects, notesData.measureResolution, bpm);
                 rows.push(this.createEntry(`inote_${difficulty}`, objects));
+                rows.push('');
             }
         }
 
@@ -90,93 +113,61 @@ export default class MaidataWriter {
             return '';
         }
 
-        /**
-         * 1. Group objects by normal time, eg.
-         *    [Input Map]
-         *    0 => [bpm, note, note]
-         *    96 => [note, note]
-         *    192 => [note]
-         *    ...
-         *    3456 => [bpm, note]
-         * 2. Construct a map to describe the number of rests required between groups, eg.
-         *    [Divisor Map]
-         *    0 => {divisor: 4, count: 1}
-         *    96 => {divisor: 4, count: 1}
-         * 2. Consume BPM and construct output map by normal time, eg.
-         *    [Input Map]
-         *    0 => [bpm, note, note]
-         *    ...3456 => [bpm, note]
-         *    to
-         *    [Input Map]
-         *    0 => [note, note]
-         *    ...3456 => [note]
-         *    [Output Map<number, string>]
-         *    0 => "(120)"
-         *    ..3456 => "(90)"
-         * 3. Consume notes, eg.
-         *    [Input Map]
-         *    0 => [note, note]
-         *    96 => [note, note]
-         *    to
-         *    [Input Map]
-         *    0 => []
-         *    96 => []
-         *    [Output Map]
-         *    0 => "(120)1/2"
-         *    96 => "1h[4:1]/8-5[4:1]"
-         * 4. Construct output based on key (normal time), eg.
-         *    0 => "(120)1/2"
-         *    96 => "1h[4:1]/8-5[4:1]"
-         */
-
         const groupedBpm = this.createGroupedObjects(bpmObjects, measureResolution);
         const groupedNotes = this.createGroupedObjects(noteObjects, measureResolution);
         const mergedGroup = this.mergeGroupedObjects(groupedBpm, groupedNotes);
         const outputGroup = new Map<number, string[]>();
-        let shortestDivisor = 1, lastNormalTime;
+        let lastNormalTime, lastDivisor;
         for (const normalTime of Array.from(mergedGroup.keys())) {
             if (lastNormalTime) {
-                const currentDivisor = measureResolution / Math.abs(normalTime - lastNormalTime);
-                if (currentDivisor > shortestDivisor) {
-                    shortestDivisor = currentDivisor;
+                const restGridLength = Math.abs(normalTime - lastNormalTime);
+                let currentDivisor = measureResolution / restGridLength;
+                if (currentDivisor < 1) {
+                    currentDivisor = 4;
+                } else if (currentDivisor % 1 >= 0.1) {
+                    const multiplier = 1 / (currentDivisor % 1);
+                    currentDivisor *= multiplier;
+                    currentDivisor = currentDivisor % 1 < 0.5 ? Math.floor(currentDivisor) : Math.ceil(currentDivisor);
                 }
+                const divisorGridLength = measureResolution / currentDivisor;
+                const restCount = restGridLength / divisorGridLength;
+                let currentGroup = outputGroup.get(lastNormalTime);
+                if (!lastDivisor || lastDivisor !== currentDivisor) {
+                    currentGroup = this.applyGroupDivisor(currentGroup ? currentGroup : [], currentDivisor);
+                    lastDivisor = currentDivisor;
+                }
+                currentGroup = this.applyGroupRests(currentGroup ? currentGroup : [], restCount);
+                outputGroup.set(lastNormalTime, currentGroup);
             }
 
             const groupedObjects = mergedGroup.get(normalTime);
             outputGroup.set(normalTime, groupedObjects ? this.renderGroupedObjects(groupedObjects, measureResolution, defaultBpm) : []);
             lastNormalTime = normalTime;
         }
-        return '';
 
-        /*
-        let content = `(${defaultBpm})`;
-        const lastObject = noteObjects[noteObjects.length - 1];
-        const lastGrid = lastObject.measure * measureResolution + lastObject.grid;
-        let currentGrid = 0, lastNote, bpm = defaultBpm;
-        while (measure < lastMeasure && grid < lastGrid) {
-            const noteObject = noteObjects[0];
-            const bpmObject = bpmObjects[0];
+        if (outputGroup.size === 1) {
+            const normalTime = outputGroup.keys().next().value;
+            let group = outputGroup.get(normalTime);
+            group = this.applyGroupDivisor(group ? group : [], 4);
+            group = this.applyGroupRests(group ? group : [], 4);
+            outputGroup.set(normalTime, group ? group : []);
+        }
 
-            if (bpmObject.measure <= measure && bpmObject.grid <= grid) {
-                bpm = bpmObject.bpm;
-                content += `(${bpmObject.bpm})`;
-                bpmObjects = bpmObjects.splice(0, 1);
-            }
-
-            if (noteObject.measure <= measure && noteObject.grid <= grid) {
-                content += this.renderNoteObjects(noteObject, measureResolution, bpm, lastNote);
-                lastNote = noteObject;
-                noteObjects = noteObjects.splice(0, 1);
-            }
-
-            grid++;
-            if (grid > measureResolution) {
-                grid -= measureResolution;
-                measure++;
+        let finalOutput = '', lastMeasure = 1;
+        for (const normalTime of Array.from(outputGroup.keys())) {
+            const group = outputGroup.get(normalTime);
+            if (group) {
+                finalOutput += group.join('');
+                const measure = Math.floor(normalTime / 384);
+                if (measure !== lastMeasure) {
+                    finalOutput += '\r\n';
+                    lastMeasure = measure;
+                }
             }
         }
 
-         */
+        finalOutput += '\r\n{1},\r\nE\r\n';
+        return finalOutput;
     }
 
     private createGroupedObjects(objects: BaseObject[], measureResolution: number) {
@@ -209,6 +200,34 @@ export default class MaidataWriter {
         return result;
     }
 
+    private applyGroupDivisor(outputItem: string[], divisor: number) {
+        let addIndex = 0;
+        for (let i = 0; i < outputItem.length; i++) {
+            const item = outputItem[i];
+            if (this.parseBpm(item)) {
+                addIndex = i + 1;
+            } else if (this.parseDivisor(item)) {
+                addIndex = i;
+                outputItem = outputItem.splice(i, 1);
+                i--;
+            }
+        }
+        outputItem.splice(addIndex, 0, `{${divisor}}`);
+        return outputItem;
+    }
+
+    private applyGroupRests(outputItem: string[], count: number) {
+        if (outputItem && outputItem.length > 0 && outputItem[outputItem.length - 1].includes(',')) {
+            outputItem = outputItem.splice(outputItem.length - 1, 1);
+        }
+        let value = '';
+        for (let i = 0; i < count; i++) {
+            value += ',';
+        }
+        outputItem.push(value);
+        return outputItem;
+    }
+
     private renderGroupedObjects(objects: BaseObject[], measureResolution: number, bpm: number): string[] {
         let currentBpm = bpm;
         let output: string[] = [];
@@ -221,15 +240,15 @@ export default class MaidataWriter {
                 noteObjects.push(<Note>object);
             }
         }
-        output.push(...this.renderNoteObjects(noteObjects, measureResolution, currentBpm));
+        output.push(this.renderNoteObjects(noteObjects, measureResolution, currentBpm));
         return output;
     }
 
     private renderBpmObject(bpmObject: Bpm) {
-        return `(${bpmObject.bpm}`;
+        return `(${bpmObject.bpm})`;
     }
 
-    private renderNoteObjects(noteObjects: Note[], measureResolution: number, bpm: number): string[] {
+    private renderNoteObjects(noteObjects: Note[], measureResolution: number, bpm: number): string {
         let output: string[] = [];
         const slidePairs = new Map<number, SlidePair>();
         const singleObjects: Note[] = [];
@@ -248,8 +267,16 @@ export default class MaidataWriter {
             singleObjects.push(object);
         }
 
+        for (const position of Array.from(slidePairs.keys())) {
+            const pair = slidePairs.get(position);
+            if (pair?.slides.length === 0) {
+                singleObjects.push(pair.star);
+                slidePairs.delete(position);
+            }
+        }
+
         for (const object of singleObjects) {
-            output.push(this.renderNoteObject(object, measureResolution, bpm));
+            output.push(this.renderNoteObject(object, measureResolution, bpm, false, true));
         }
 
         for (const position of Array.from(slidePairs.keys())) {
@@ -273,7 +300,7 @@ export default class MaidataWriter {
             }
         }
 
-        return output;
+        return output.join('/');
     }
 
     private renderNoteObject(note: Note, measureResolution: number, bpm: number, applyForceRing: boolean = false, applyForceStar: boolean = false) {
@@ -350,11 +377,29 @@ export default class MaidataWriter {
     private renderGridLength(length: number, measureResolution: number) {
         let left = measureResolution / length;
         let right = 1;
-        if (left < 1) {
-            const multiplier = 1 / left;
+        let fallbackLeft = left;
+        let fallbackRight = right;
+        let fallbackSet = false, overflow = false;
+        while (left % 1 >= 0.1 || right % 1 >= 0.1) {
+            const multiplier = left % 1 !== 0 ? 1 / (left % 1) : 1 / (right % 1);
             left *= multiplier;
             right *= multiplier;
+            if (left > 64 || right > 64) {
+                overflow = true;
+                break;
+            }
+            if (!fallbackSet && left >= 1 && right >= 1) {
+                fallbackLeft = left;
+                fallbackRight = right;
+                fallbackSet = true;
+            }
         }
+        if (overflow) {
+            left = fallbackLeft;
+            right = fallbackRight;
+        }
+        left = left % 1 < 0.5 ? Math.floor(left) : Math.ceil(right);
+        right = right % 1 < 0.5 ? Math.floor(right) : Math.ceil(right);
         return `[${left}:${right}]`;
     }
 
@@ -419,6 +464,25 @@ export default class MaidataWriter {
             case SlideType.FAN:
                 return 'w';
         }
+    }
+
+    private parseBpm(item: string): number | undefined {
+        const matches = item.match(/\((.*?)\)/);
+        if (matches && matches.length > 0) {
+            const value = Number(matches[1]);
+            if (isNumber(value)) {
+                return value;
+            }
+        }
+        return undefined;
+    }
+
+    private parseDivisor(item: string): string | undefined {
+        const matches = item.match(/{(.*?)}/);
+        if (matches && matches.length > 0) {
+            return matches[1];
+        }
+        return undefined;
     }
 
     private normalizeTime(measure: number, grid: number, measureResolution: number) {

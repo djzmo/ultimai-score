@@ -8,6 +8,7 @@
 &des_5=MASTER ノーツデザイナー名義を書く
 &des_6=Re:MASTER ノーツデザイナー名義を書く
 
+&bpm=120
 &seek=0
 &first=2.000
 

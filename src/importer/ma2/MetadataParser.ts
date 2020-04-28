@@ -36,10 +36,13 @@ export default class MetadataParser {
                 const levelDecimal = Number(item.levelDecimal[0]);
                 const designer = item.notesDesigner[0].str[0];
 
-                designers.set(difficulty, designer);
                 notesDataPath.set(difficulty, fileName);
-                levels.set(difficulty, isNumber(level) && isNumber(levelDecimal) ? level + levelDecimal / 10 :
-                    (isNumber(level) ? level : 0));
+                if (designer && designer.length > 0) {
+                    designers.set(difficulty, designer);
+                }
+                if (isNumber(level) && isNumber(levelDecimal) && level > 0) {
+                    levels.set(difficulty, level + levelDecimal / 10);
+                }
                 difficultyIndex++;
             }
 

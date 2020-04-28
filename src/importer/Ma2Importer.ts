@@ -1,9 +1,9 @@
 import {promises as fsPromises, existsSync} from "fs";
-import Importer from './Importer';
-import MusicData from '../data/music/MusicData';
-import Ma2MusicData from '../data/music/format/Ma2MusicData';
-import MusicNotesData from '../data/music/MusicNotesData';
-import MusicNotesDifficulty from '../data/music/MusicNotesDifficulty';
+import Importer from "./Importer";
+import MusicData from "../data/music/MusicData";
+import Ma2MusicData from "../data/music/format/Ma2MusicData";
+import MusicNotesData from "../data/music/MusicNotesData";
+import MusicNotesDifficulty from "../data/music/MusicNotesDifficulty";
 import ScoreParser from "./ma2/ScoreParser";
 import MetadataParser from "./ma2/MetadataParser";
 

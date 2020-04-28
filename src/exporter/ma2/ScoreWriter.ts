@@ -115,7 +115,7 @@ export default class ScoreWriter {
                 command = ScoreWriter.SLIDE_COMMAND_MAP[slideType];
                 args.push(waitDuration.toString(),
                     travelDuration.toString(),
-                    endPosition.toString());
+                    (endPosition - 1).toString());
             } else {
                 if (type === NoteType.HOLD || type === NoteType.EX_HOLD || type === NoteType.TOUCH_HOLD) {
                     const {holdLength} = <HoldNote>noteObject;

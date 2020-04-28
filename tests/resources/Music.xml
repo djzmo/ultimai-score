@@ -57,14 +57,14 @@
             <file>
                 <path>999999_00.ma2</path>
             </file>
-            <level>3</level>
+            <level>10</level>
             <levelDecimal>0</levelDecimal>
             <notesDesigner>
                 <id>999</id>
                 <str>BASIC ノーツデザイナー名義を書く</str>
             </notesDesigner>
             <notesType>0</notesType>
-            <musicLevelID>8</musicLevelID>
+            <musicLevelID>13</musicLevelID>
             <isTouchEnable>false</isTouchEnable>
             <isEnable>false</isEnable>
         </Notes>
@@ -72,14 +72,14 @@
             <file>
                 <path>999999_01.ma2</path>
             </file>
-            <level>8</level>
-            <levelDecimal>0</levelDecimal>
+            <level>12</level>
+            <levelDecimal>5</levelDecimal>
             <notesDesigner>
                 <id>999</id>
                 <str>ADVANCED ノーツデザイナー名義を書く</str>
             </notesDesigner>
             <notesType>0</notesType>
-            <musicLevelID>0</musicLevelID>
+            <musicLevelID>17</musicLevelID>
             <isTouchEnable>false</isTouchEnable>
             <isEnable>false</isEnable>
         </Notes>
@@ -87,8 +87,8 @@
             <file>
                 <path>999999_02.ma2</path>
             </file>
-            <level>10</level>
-            <levelDecimal>5</levelDecimal>
+            <level>99</level>
+            <levelDecimal>0</levelDecimal>
             <notesDesigner>
                 <id>0</id>
                 <str>EXPERT ノーツデザイナー名義を書く</str>
@@ -102,8 +102,8 @@
             <file>
                 <path>999999_03.ma2</path>
             </file>
-            <level>11</level>
-            <levelDecimal>5</levelDecimal>
+            <level>※あ</level>
+            <levelDecimal>0</levelDecimal>
             <notesDesigner>
                 <id>0</id>
                 <str>MASTER ノーツデザイナー名義を書く</str>
@@ -117,8 +117,8 @@
             <file>
                 <path>999999_04.ma2</path>
             </file>
-            <level>12</level>
-            <levelDecimal>9</levelDecimal>
+            <level>0</level>
+            <levelDecimal>0</levelDecimal>
             <notesDesigner>
                 <id>0</id>
                 <str>Re:MASTER ノーツデザイナー名義を書</str>

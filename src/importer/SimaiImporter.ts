@@ -1,5 +1,5 @@
-import {promises as fsPromises} from 'fs';
-import isNumber from 'is-number';
+import {promises as fsPromises} from "fs";
+import isNumber from "is-number";
 import Importer from "./Importer";
 import MusicData from "../data/music/MusicData";
 import SimaiMusicData from "../data/music/format/SimaiMusicData";

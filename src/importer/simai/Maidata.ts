@@ -1,4 +1,4 @@
-import isNumber from 'is-number';
+import isNumber from "is-number";
 
 export default class Maidata {
     private items: Map<string, string>;

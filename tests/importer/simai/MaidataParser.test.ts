@@ -1,5 +1,5 @@
 import {promises as fsPromises} from "fs";
-import Maidata from "../../../src/importer/simai/MaidataParser";
+import Maidata from "../../../src/importer/simai/Maidata";
 
 const {readFile} = fsPromises;
 
@@ -18,7 +18,7 @@ describe('maidata parser', () => {
         expect(parser.getString('lv_3')).toBe('12+');
         expect(parser.getString('lv_4')).toBe('99');
         expect(parser.getString('lv_5')).toBe('※あ');
-        expect(parser.getString('inote_1')).toBe('');
+        expect(parser.getString('inote_1')).toBeUndefined();
         expect(parser.getString('inote_2')).toBe('(120){1}1,2,3/6,45,1b,7b,3/5b,4b/6,{1},1h[1:1],2h[2:1],3h[4:1],4h[8:1],5h[2:1]/6h[4:1],{1},');
         expect(parser.getString('inote_3')).toBe('(100){1}1-3[4:1],1-4[4:1],1-5[4:1],1-6[4:1],1-7[4:1],1>1[4:1],1>2[4:1],1>3[4:1],1>4[4:1],1>5[4:1],' +
             '1>6[4:1],1>7[4:1],1>8[4:1],1<1[4:1],1<2[4:1],1<3[4:1],1<4[4:1],1<5[4:1],1<6[4:1],1<7[4:1],1<8[4:1],1p1[4:1],1p2[4:1],1p3[4:1],1p4[4:1],1p5[4:1],1p6[4:1],' +

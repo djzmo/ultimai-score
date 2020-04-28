@@ -1,10 +1,8 @@
-import {promises, existsSync} from 'fs';
-import randomize from 'randomatic';
-import {create} from 'xmlbuilder2';
-import mkdirp from 'mkdirp';
-import Exporter from './Exporter';
-import MusicData from '../data/music/MusicData';
-import MusicNotesDifficulty from "../data/music/MusicNotesDifficulty";
+import {promises, existsSync} from "fs";
+import randomize from "randomatic";
+import mkdirp from "mkdirp";
+import Exporter from "./Exporter";
+import MusicData from "../data/music/MusicData";
 import ScoreWriter from "./ma2/ScoreWriter";
 import MetadataWriter from "./ma2/MetadataWriter";
 

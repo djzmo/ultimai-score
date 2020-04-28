@@ -1,4 +1,3 @@
-import {promises as fsPromises} from 'fs';
 import Ma2Importer from "../../src/importer/Ma2Importer";
 import Ma2MusicData from "../../src/data/music/format/Ma2MusicData";
 import MusicNotesDifficulty from "../../src/data/music/MusicNotesDifficulty";
@@ -7,29 +6,25 @@ import NoteType from "../../src/data/music/object/NoteType";
 import SlideNote from "../../src/data/music/object/SlideNote";
 import HoldNote from "../../src/data/music/object/HoldNote";
 
-const {readFile} = fsPromises;
-
-describe('ma2 importer', async () => {
+describe('ma2 importer', () => {
     it('should import correctly', async () => {
         const importer = new Ma2Importer;
-        const musicData: Ma2MusicData = <Ma2MusicData>await importer.import('tests/resources/Music.xml');
-        expect(musicData.id).toBe(999999);
-        expect(musicData.title).toBe('ここに曲名を書く');
-        expect(musicData.artist).toBe('ここにアーティスト名を書く');
-        expect(musicData.bpm).toBe(120);
-        expect(musicData.genre).toBe('バラエティ');
-        expect(musicData.notesData.size).toBe(5);
-        expect(musicData.notesData.get(MusicNotesDifficulty.BASIC)?.level).toBe(3);
-        expect(musicData.notesData.get(MusicNotesDifficulty.ADVANCED)?.level).toBe(8);
-        expect(musicData.notesData.get(MusicNotesDifficulty.EXPERT)?.level).toBe(10.5);
-        expect(musicData.notesData.get(MusicNotesDifficulty.MASTER)?.level).toBe(11.5);
-        expect(musicData.notesData.get(MusicNotesDifficulty.RE_MASTER)?.level).toBe(12.9);
-
+        const ma2MusicData: Ma2MusicData = <Ma2MusicData>await importer.import('tests/resources/Music.xml');
         const simaiImporter = new SimaiImporter;
         const simaiMusicData = await simaiImporter.import('tests/resources/maidata.txt');
 
-        for (const difficulty of Array.from(musicData.notesData.keys())) {
-            const ma2NotesData = musicData.notesData.get(difficulty);
+        expect(ma2MusicData.title).toBe(simaiMusicData.title);
+        expect(ma2MusicData.artist).toBe(simaiMusicData.artist);
+        expect(ma2MusicData.bpm).toBe(simaiMusicData.bpm);
+        expect(ma2MusicData.notesData.size).toBe(simaiMusicData.notesData.size);
+        expect(ma2MusicData.notesData.get(MusicNotesDifficulty.BASIC)?.level).toBe(simaiMusicData.notesData.get(MusicNotesDifficulty.BASIC)?.level);
+        expect(ma2MusicData.notesData.get(MusicNotesDifficulty.ADVANCED)?.level).toBe(simaiMusicData.notesData.get(MusicNotesDifficulty.ADVANCED)?.level);
+        expect(ma2MusicData.notesData.get(MusicNotesDifficulty.EXPERT)?.level).toBe(simaiMusicData.notesData.get(MusicNotesDifficulty.EXPERT)?.level);
+        expect(ma2MusicData.notesData.get(MusicNotesDifficulty.MASTER)?.level).toBe(simaiMusicData.notesData.get(MusicNotesDifficulty.MASTER)?.level);
+        expect(ma2MusicData.notesData.get(MusicNotesDifficulty.RE_MASTER)?.level).toBe(simaiMusicData.notesData.get(MusicNotesDifficulty.RE_MASTER)?.level);
+
+        for (const difficulty of Array.from(ma2MusicData.notesData.keys())) {
+            const ma2NotesData = ma2MusicData.notesData.get(difficulty);
             const simaiNotesData = simaiMusicData.notesData.get(difficulty);
 
             if (ma2NotesData && simaiNotesData) {
