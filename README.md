@@ -15,7 +15,6 @@ Usage:    ultimai [options] [file...]
 
 Examples: ultimai tutorial/maidata.txt
           ultimai --outDir ~/library 0019_acceleration/maidata.txt 0021_fragrance/maidata.txt
-
           ultimai -s ma2 -t simai 123456/Music.xml
 
 Options:
