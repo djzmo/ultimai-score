@@ -158,7 +158,7 @@ export default class MaidataWriter {
             const group = outputGroup.get(normalTime);
             if (group) {
                 finalOutput += group.join('');
-                const measure = Math.floor(normalTime / 384);
+                const measure = Math.floor(normalTime / measureResolution);
                 if (measure !== lastMeasure) {
                     finalOutput += '\r\n';
                     lastMeasure = measure;
