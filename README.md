@@ -29,7 +29,7 @@ Options:
 ``` sh
 $ git clone git@github.com:djzmo/ultimai
 $ cd ultimai
-$ npm i -g tsc pkg
+$ npm i -g typescript pkg
 $ npm i
 $ tsc
 $ pkg . --out-path ./bin
