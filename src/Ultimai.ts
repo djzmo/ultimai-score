@@ -100,7 +100,7 @@ export default class Ultimai {
         console.log(`Usage:    ${Ultimai.NAME} [options] [file...]\n`);
 
         console.log(`Examples: ${Ultimai.NAME} tutorial/maidata.txt`);
-        console.log(`          ${Ultimai.NAME} --outDir ~/library 0019_acceleration/maidata.txt 0021_fragrance/maidata.txt\n`);
+        console.log(`          ${Ultimai.NAME} --outDir ~/library 0019_acceleration/maidata.txt 0021_fragrance/maidata.txt`);
         console.log(`          ${Ultimai.NAME} -s ma2 -t simai 123456/Music.xml\n`);
 
         console.log(`Options:`);
