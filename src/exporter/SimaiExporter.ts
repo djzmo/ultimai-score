@@ -15,9 +15,9 @@ export default class SimaiExporter extends Exporter {
             outputPath += '/';
         }
 
-        const randomId = randomize('0', 6).toString();
-        const strippedTitle = data.title ? data.title.replace(/[^\w\s]/gi, '').toLowerCase() : randomId;
-        const slug = strippedTitle.length ? strippedTitle : randomId;
+        const id = data.id ? data.id : randomize('0', 6).toString();
+        const strippedTitle = data.title ? data.title.replace(/[^\w\s]/gi, '').replace(' ', '_').toLowerCase() : id;
+        const slug = strippedTitle.length ? `${id}_${strippedTitle}` : id;
         const musicDirectory = outputPath + slug + '/';
 
         if (!existsSync(musicDirectory)) {
