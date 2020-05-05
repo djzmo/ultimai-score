@@ -34,6 +34,7 @@ export default class SimaiImporter extends Importer {
         const title = maidata.getString('title');
         const artist = this.extractArtist(maidata);
         const bpm = maidata.getNumber('bpm');
+        const wholeBpm = maidata.getNumber('wholebpm');
         const track = maidata.getString('track');
         const notesData = new Map<MusicNotesDifficulty, MusicNotesData>();
         const objectsParser = new ObjectsParser;
@@ -42,7 +43,10 @@ export default class SimaiImporter extends Importer {
             const designer = this.extractDesigner(maidata, i);
             const level = this.extractLevel(maidata, i, SimaiImporter.DEFAULT_LEVEL_VALUE);
             if (rawNotesData && rawNotesData.length > 0) {
-                const result = await objectsParser.parse(rawNotesData, SimaiImporter.DEFAULT_MEASURE_RESOLUTION, bpm ? bpm : SimaiImporter.DEFAULT_BPM);
+                const result = await objectsParser.parse(rawNotesData,
+                    SimaiImporter.DEFAULT_MEASURE_RESOLUTION,
+                    bpm ? bpm : (wholeBpm ? wholeBpm : SimaiImporter.DEFAULT_BPM)
+                );
                 const {noteObjects, bpmObjects, timeSignatureObjects, statistics} = result;
                 notesData.set(i, {
                     designer,
