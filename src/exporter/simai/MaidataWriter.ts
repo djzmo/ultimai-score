@@ -67,7 +67,7 @@ export default class MaidataWriter {
         let hasDesigner = false;
         for (const difficulty of Array.from(designers.keys())) {
             const designer = designers.get(difficulty);
-            if (designer) {
+            if (designer && designer !== '-') {
                 rows.push(this.createEntry(`des_${difficulty}`, designer));
                 hasDesigner = true;
             }
