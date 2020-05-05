@@ -43,6 +43,8 @@ export default class MaidataWriter {
             rows.push(this.createEntry('track', 'track.mp3'));
         }
 
+        rows.push(this.createEntry('first', '0'));
+
         const designers = new Map<number, string>();
         const levels = new Map<number, string>();
         for (const difficulty of Array.from(data.notesData.keys())) {
@@ -88,6 +90,8 @@ export default class MaidataWriter {
             rows.push('');
         }
 
+        rows.push('');
+
         return rows.join('\r\n');
     }
 
@@ -123,7 +127,7 @@ export default class MaidataWriter {
         const outputGroup = new Map<number, string[]>();
         let lastNormalTime, lastDivisor;
         for (const normalTime of Array.from(mergedGroup.keys())) {
-            if (lastNormalTime) {
+            if (lastNormalTime != null) {
                 const restGridLength = Math.abs(normalTime - lastNormalTime);
                 let currentDivisor = measureResolution / restGridLength;
                 if (currentDivisor < 1) {
@@ -378,14 +382,19 @@ export default class MaidataWriter {
         return output;
     }
 
+    private isTolerablyRound(num: number) {
+        const x = num % 1;
+        return x < 0.1 || x >= 0.9;
+    }
+
     private renderGridLength(length: number, measureResolution: number) {
         let left = measureResolution / length;
         let right = 1;
         let fallbackLeft = left;
         let fallbackRight = right;
         let fallbackSet = false, overflow = false;
-        while (left % 1 >= 0.1 || right % 1 >= 0.1) {
-            const multiplier = left % 1 !== 0 ? 1 / (left % 1) : 1 / (right % 1);
+        while (!this.isTolerablyRound(left) || !this.isTolerablyRound(right)) {
+            const multiplier = !this.isTolerablyRound(left) ? 1 / (left % 1) : 1 / (right % 1);
             left *= multiplier;
             right *= multiplier;
             if (left > 64 || right > 64) {
@@ -402,8 +411,8 @@ export default class MaidataWriter {
             left = fallbackLeft;
             right = fallbackRight;
         }
-        left = left % 1 < 0.5 ? Math.floor(left) : Math.ceil(right);
-        right = right % 1 < 0.5 ? Math.floor(right) : Math.ceil(right);
+        left = Math.round(left);
+        right = Math.round(right);
         return `[${left}:${right}]`;
     }
 
@@ -414,8 +423,7 @@ export default class MaidataWriter {
     }
 
     private convertGridToSeconds(length: number, measureResolution: number, bpm: number) {
-        const bps = bpm / 60;
-        const spb = 1 / bps;
+        const spb = getSecondsPerBeat(bpm);
         const gridsPerBeat = measureResolution / 4;
         return length / gridsPerBeat * spb;
     }

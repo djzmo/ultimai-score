@@ -8,6 +8,7 @@ import HoldNote from "../../data/music/object/HoldNote";
 import TimeSignature from "../../data/music/object/TimeSignature";
 import MusicStatistics from "../../data/music/MusicStatistics";
 import {calculateDistance, isButtonPosition, isTouchPosition, shiftPosition} from "../../util/NoteUtil";
+import {getSecondsPerBeat} from "../../util/TimeUtil";
 
 type SimaiMaidataObjectsParseResult = {
     noteObjects: Note[],
@@ -539,9 +540,7 @@ export default class ObjectsParser {
     }
 
     private convertSecondsToGridLength(value: number, measureResolution: number, bpm: number) {
-        // f(x) = x / secondsPerBeat / beatsPerMeasure * measureResolution
-        const bps = bpm / 60;
-        const spb = 1 / bps;
+        const spb = getSecondsPerBeat(bpm);
         return value / spb / 4 * measureResolution;
     }
 
