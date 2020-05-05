@@ -9,6 +9,7 @@ import TouchArea from "../../data/music/object/TouchArea";
 import SlideType from "../../data/music/object/SlideType";
 import BaseObject from "../../data/music/object/BaseObject";
 import {shiftPosition} from "../../util/NoteUtil";
+import {getSecondsPerBeat} from "../../util/TimeUtil";
 
 type SlidePair = {
     star: Note,
@@ -37,6 +38,9 @@ export default class MaidataWriter {
         }
         if (data.artist) {
             rows.push(this.createEntry('artist', data.artist));
+        }
+        if (data.trackPath) {
+            rows.push(this.createEntry('track', 'track.mp3'));
         }
 
         const designers = new Map<number, string>();

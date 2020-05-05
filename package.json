@@ -1,6 +1,6 @@
 {
   "name": "ultimai",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Ultimate rhythm game score format converter",
   "main": "dist/cli.js",
   "types": "dist/cli.d.ts",
@@ -15,8 +15,10 @@
     "command-line-args": "^5.1.1",
     "is-number": "^7.0.0",
     "mkdirp": "^1.0.4",
+    "node-critools": "^1.0.0",
     "randomatic": "^3.1.1",
     "slugify": "^1.4.0",
+    "sox-audio": "^0.3.0",
     "ts-node": "^8.9.0",
     "typescript": "^3.8.3",
     "xml2js": "^0.4.23",
@@ -27,8 +29,7 @@
     "@types/jest": "^25.2.1",
     "@types/node": "^13.13.2",
     "jest": "^25.4.0",
-    "ts-jest": "^25.4.0",
-    "tsc": "^1.20150623.0"
+    "ts-jest": "^25.4.0"
   },
   "bin": "dist/cli.js",
   "pkg": {

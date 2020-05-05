@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <MusicData>
-    <dataName>music999999</dataName>
+    <dataName>music011999</dataName>
     <netOpenName>
         <id>0</id>
         <str>Net191101</str>
@@ -10,7 +10,7 @@
         <str>Ver1.00.00</str>
     </releaseTagName>
     <name>
-        <id>999999</id>
+        <id>11999</id>
         <str>ここに曲名を書く</str>
     </name>
     <rightsInfoName>
@@ -33,11 +33,11 @@
         <str>maimaDX</str>
     </AddVersion>
     <movieName>
-        <id>999</id>
+        <id>1999</id>
         <str>-</str>
     </movieName>
     <cueName>
-        <id>999</id>
+        <id>1999</id>
         <str>-</str>
     </cueName>
     <dresscode>false</dresscode>
@@ -55,7 +55,7 @@
     <notesData>
         <Notes>
             <file>
-                <path>999999_00.ma2</path>
+                <path>011999_00.ma2</path>
             </file>
             <level>10</level>
             <levelDecimal>0</levelDecimal>
@@ -70,7 +70,7 @@
         </Notes>
         <Notes>
             <file>
-                <path>999999_01.ma2</path>
+                <path>011999_01.ma2</path>
             </file>
             <level>12</level>
             <levelDecimal>5</levelDecimal>
@@ -85,7 +85,7 @@
         </Notes>
         <Notes>
             <file>
-                <path>999999_02.ma2</path>
+                <path>011999_02.ma2</path>
             </file>
             <level>99</level>
             <levelDecimal>0</levelDecimal>
@@ -100,7 +100,7 @@
         </Notes>
         <Notes>
             <file>
-                <path>999999_03.ma2</path>
+                <path>011999_03.ma2</path>
             </file>
             <level>※あ</level>
             <levelDecimal>0</levelDecimal>
@@ -115,7 +115,7 @@
         </Notes>
         <Notes>
             <file>
-                <path>999999_04.ma2</path>
+                <path>011999_04.ma2</path>
             </file>
             <level>0</level>
             <levelDecimal>0</levelDecimal>
@@ -130,7 +130,7 @@
         </Notes>
         <Notes>
             <file>
-                <path>999999_05.ma2</path>
+                <path>011999_05.ma2</path>
             </file>
             <level>0</level>
             <levelDecimal>0</levelDecimal>

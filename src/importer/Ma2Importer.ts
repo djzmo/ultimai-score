@@ -10,6 +10,9 @@ import MetadataParser from "./ma2/MetadataParser";
 const {readFile} = fsPromises;
 
 export default class Ma2Importer extends Importer {
+    private _moviePath?;
+    private _soundPath?;
+
     async analyze(path: string): Promise<boolean> {
         const valid = path.endsWith('/Music.xml');
         if (!valid) {
@@ -23,7 +26,6 @@ export default class Ma2Importer extends Importer {
     }
 
     private async loadMusic(path: string): Promise<Ma2MusicData> {
-        path = path.replace(/\\/g, '/');
         const rawData = await readFile(path, {encoding: 'utf8'});
 
         if (!rawData || rawData.length === 0) {
@@ -33,10 +35,10 @@ export default class Ma2Importer extends Importer {
         const metadataParser = new MetadataParser;
         const {id, title, artist, bpm, levels, notesDataPath, designers, genre} = await metadataParser.parse(rawData);
         const notesData: Map<MusicNotesDifficulty, MusicNotesData> = new Map<MusicNotesDifficulty, MusicNotesData>();
-        const containingDirPath = path.indexOf('/') !== -1 ? path.substring(0, path.lastIndexOf('/')) : process.cwd();
+        const containingDirPath = path.indexOf('/') !== -1 ? path.substring(0, path.lastIndexOf('/')) + '/' : './';
         const scoreParser = new ScoreParser;
         for (const difficulty of Array.from(notesDataPath.keys())) {
-            const path = containingDirPath + '/' + notesDataPath.get(difficulty);
+            const path = containingDirPath + notesDataPath.get(difficulty);
             if (path && existsSync(path)) {
                 const level = levels.get(difficulty);
                 const designer = designers.get(difficulty);
@@ -55,14 +57,41 @@ export default class Ma2Importer extends Importer {
             }
         }
 
+        const movieContainingPath = this.moviePath ? this.moviePath :
+            (path.indexOf('/') !== -1 ? path.substring(0, path.lastIndexOf('/')) : './');
+        const soundContainingPath = this.soundPath ? this.soundPath :
+            (path.indexOf('/') !== -1 ? path.substring(0, path.lastIndexOf('/')) : './');
+        const assetId = (id >= 10000 ? Number(id.toString().substring(1)) : id).toString().padStart(6, '0');
+        
+        const moviePath = existsSync(`${movieContainingPath}/${assetId}.dat`) ? `${movieContainingPath}/${assetId}.dat` : undefined;
+        const trackPath = existsSync(`${soundContainingPath}/music${assetId}.awb`) ? `${soundContainingPath}/music${assetId}.awb` : undefined;
+
         return {
-            id,
+            id: id.toString(),
             title,
             artist,
             bpm,
             notesData,
             genre,
-            notesDataPath
+            notesDataPath,
+            trackPath,
+            moviePath
         };
+    }
+
+    get moviePath() {
+        return this._moviePath;
+    }
+
+    set moviePath(value) {
+        this._moviePath = value;
+    }
+
+    get soundPath() {
+        return this._soundPath;
+    }
+
+    set soundPath(value) {
+        this._soundPath = value;
     }
 }

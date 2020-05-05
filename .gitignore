@@ -1,5 +1,6 @@
 .idea/
+bin/
 dist/
 node_modules/
 output/
-bin/
+config.json

@@ -7,4 +7,7 @@ export default interface MusicData {
     genre?: string;
     bpm?: number;
     notesData: Map<MusicNotesDifficulty, MusicNotesData>;
+    thumbnailPath?: string;
+    moviePath?: string;
+    trackPath?: string;
 }

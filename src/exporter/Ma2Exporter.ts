@@ -1,4 +1,4 @@
-import {promises, existsSync} from "fs";
+import {existsSync, promises} from "fs";
 import randomize from "randomatic";
 import mkdirp from "mkdirp";
 import Exporter from "./Exporter";
@@ -9,13 +9,15 @@ import MetadataWriter from "./ma2/MetadataWriter";
 const {writeFile} = promises;
 
 export default class Ma2Exporter extends Exporter {
+    private _moviePath?;
+    private _soundPath?;
+
     async export(data: MusicData, outputPath: string): Promise<string[]> {
-        outputPath = outputPath.replace(/\\/g, '/');
         if (outputPath.endsWith('/')) {
             outputPath = outputPath.substring(0, outputPath.length - 1);
         }
 
-        const id = `012${randomize('0', 3)}`;
+        const id = `0119${randomize('0', 2).toString().padStart(2, '0')}`;
         const paths: string[] = [];
         const musicDirectory = `${outputPath}/music${id}`;
 
@@ -46,6 +48,24 @@ export default class Ma2Exporter extends Exporter {
             }
         }
 
+        // TODO: export sound and movie files
+
         return paths;
+    }
+
+    get moviePath() {
+        return this._moviePath;
+    }
+
+    set moviePath(value) {
+        this._moviePath = value;
+    }
+
+    get soundPath() {
+        return this._soundPath;
+    }
+
+    set soundPath(value) {
+        this._soundPath = value;
     }
 }

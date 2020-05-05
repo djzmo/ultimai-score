@@ -1,0 +1,11 @@
+{
+  "outDir": "./output",
+  "sourceFormat": "simai",
+  "targetFormat": "ma2",
+  "ignoreSounds": true,
+  "ma2": {
+    "acbKey": "",
+    "moviePath": "./",
+    "soundPath": "./"
+  }
+}

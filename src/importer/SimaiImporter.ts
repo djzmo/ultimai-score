@@ -1,4 +1,4 @@
-import {promises as fsPromises} from "fs";
+import {promises as fsPromises, existsSync} from "fs";
 import isNumber from "is-number";
 import Importer from "./Importer";
 import MusicData from "../data/music/MusicData";
@@ -28,12 +28,13 @@ export default class SimaiImporter extends Importer {
     }
 
     private async loadMaidata(path: string): Promise<SimaiMusicData> {
+        const containingPath = path.indexOf('/') !== -1 ? path.substring(0, path.lastIndexOf('/')) + '/' : './';
         const rawData = await readFile(path, {encoding: 'utf8'});
         const maidata = new Maidata(rawData);
         const title = maidata.getString('title');
         const artist = this.extractArtist(maidata);
         const bpm = maidata.getNumber('bpm');
-        const trackPath = maidata.getString('track');
+        const track = maidata.getString('track');
         const notesData = new Map<MusicNotesDifficulty, MusicNotesData>();
         const objectsParser = new ObjectsParser;
         for (let i = 1; i <= 7; i++) {
@@ -55,7 +56,11 @@ export default class SimaiImporter extends Importer {
             }
         }
 
-        return {title, artist, bpm, notesData, trackPath};
+        const trackPath = track ? containingPath + track :
+            (existsSync(containingPath + 'track.mp3') ? containingPath + 'track.mp3' : undefined);
+        const thumbnailPath = existsSync(containingPath + 'bg.jpg') ? containingPath + 'bg.jpg' : undefined;
+
+        return {title, artist, bpm, notesData, trackPath, thumbnailPath};
     }
 
     private extractLevel(parser: Maidata, i: number, defaultLevel?: number) {
