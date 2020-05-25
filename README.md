@@ -1,6 +1,6 @@
-# ultimai
+# ultimai-score
 
-ultimai is a score format converter tool for that washing machine game simulator. 
+ultimai-score is a score format converter tool for that washing machine game simulator. 
 
 It currently supports two-way format conversion between:
 
